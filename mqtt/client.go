@@ -26,7 +26,7 @@ var DefaultClient = Client{
 	server:    "tcp://mqtt.meshtastic.org:1883",
 	username:  "meshdev",
 	password:  "large4cats",
-	topicRoot: "msh", //TODO: this will need to change
+	topicRoot: "msh/2", //TODO: this will need to change
 
 	channelHandlers: make(map[string][]HandlerFunc),
 }
