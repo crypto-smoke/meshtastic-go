@@ -10,7 +10,7 @@ on:
 
 jobs:
   lint:
-    name: Run linter before doing anything
+    name: Linters
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the Go module directory
