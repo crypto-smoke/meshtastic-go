@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/charmbracelet/log"
+	"github.com/crypto-smoke/meshtastic-go/transport"
 	"go.bug.st/serial"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -20,32 +21,141 @@ const (
 	PORT_SPEED      = 115200 //921600
 )
 
+type HandlerFunc func(message proto.Message)
+
 // Serial connection to a node
 type Conn struct {
 	serialPort string
 	serialConn serial.Port
+	handlers   *transport.HandlerRegistry
+
+	config struct {
+		complete bool
+		configID uint32
+		*meshtastic.MyNodeInfo
+		*meshtastic.DeviceMetadata
+		nodes    []*meshtastic.NodeInfo
+		channels []*meshtastic.Channel
+		config   []*meshtastic.Config
+		modules  []*meshtastic.ModuleConfig
+	}
 }
 
-func NewConn(port string) *Conn {
-	var c = Conn{serialPort: port}
+func NewConn(port string, errorOnNoHandler bool) *Conn {
+	var c = Conn{serialPort: port,
+		handlers: transport.NewHandlerRegistry(errorOnNoHandler)}
 	return &c
 }
 
 // You have to send this first to get the radio into protobuf mode and have it accept and send packets via serial
 func (c *Conn) sendGetConfig() {
 	r := rand.Uint32()
-
+	c.config.configID = r
 	//log.Info("want config id", r)
 	msg := &meshtastic.ToRadio{
 		PayloadVariant: &meshtastic.ToRadio_WantConfigId{
 			WantConfigId: r,
 		},
 	}
-	c.sendToRadio(msg)
+	c.SendToRadio(msg)
+}
+func (c *Conn) Handle(kind proto.Message, handler transport.MessageHandler) {
+	c.handlers.RegisterHandler(kind, handler)
 }
 
-// TODO: refactor this to lose the channels
-func (c *Conn) Connect(ch chan *meshtastic.FromRadio, ch2 chan *meshtastic.ToRadio) error {
+func (c *Conn) Connect() error {
+	mode := &serial.Mode{
+		BaudRate: PORT_SPEED,
+	}
+	port, err := serial.Open(c.serialPort, mode)
+	if err != nil {
+		return err
+	}
+	c.serialConn = port
+	ch := make(chan *meshtastic.FromRadio)
+	go c.decodeProtos(false, ch)
+	go func() {
+		for {
+			msg := <-ch
+			var variant proto.Message
+			switch msg.GetPayloadVariant().(type) {
+			// These pbufs all get sent upon initial connection to the node
+			case *meshtastic.FromRadio_MyInfo:
+				c.config.MyNodeInfo = msg.GetMyInfo()
+				variant = c.config.MyNodeInfo
+			case *meshtastic.FromRadio_Metadata:
+				c.config.DeviceMetadata = msg.GetMetadata()
+				variant = c.config.DeviceMetadata
+			case *meshtastic.FromRadio_NodeInfo:
+				node := msg.GetNodeInfo()
+				c.config.nodes = append(c.config.nodes, node)
+				variant = node
+			case *meshtastic.FromRadio_Channel:
+				channel := msg.GetChannel()
+				c.config.channels = append(c.config.channels, channel)
+				variant = channel
+			case *meshtastic.FromRadio_Config:
+				cfg := msg.GetConfig()
+				c.config.config = append(c.config.config, cfg)
+				variant = cfg
+			case *meshtastic.FromRadio_ModuleConfig:
+				cfg := msg.GetModuleConfig()
+				c.config.modules = append(c.config.modules, cfg)
+				variant = cfg
+			case *meshtastic.FromRadio_ConfigCompleteId:
+				// done getting config info
+				//fmt.Println("config complete")
+				c.config.complete = true
+				/*
+					out, err := json.MarshalIndent(c.config, "", "  ")
+					if err != nil {
+						log.Error("failed marshalling", "err", err)
+						continue
+					}
+					fmt.Println(string(out))
+					out, err = json.MarshalIndent(c.config.config, "", "  ")
+					if err != nil {
+						log.Error("failed marshalling", "err", err)
+						continue
+					}
+					fmt.Println(string(out))
+
+				*/
+				continue
+				// below are packets not part of initial connection
+
+			case *meshtastic.FromRadio_LogRecord:
+				variant = msg.GetLogRecord()
+			case *meshtastic.FromRadio_MqttClientProxyMessage:
+				variant = msg.GetMqttClientProxyMessage()
+			case *meshtastic.FromRadio_QueueStatus:
+				variant = msg.GetQueueStatus()
+			case *meshtastic.FromRadio_Rebooted:
+				// true if radio just rebooted
+				fmt.Print("rebooted", msg.GetRebooted())
+				continue
+			case *meshtastic.FromRadio_XmodemPacket:
+				variant = msg.GetXmodemPacket()
+
+			case *meshtastic.FromRadio_Packet:
+				variant = msg.GetPacket()
+			default:
+				log.Error("unhandled protobuf from radio")
+			}
+			if !c.config.complete {
+				continue
+			}
+			err = c.handlers.HandleMessage(variant)
+			if err != nil {
+				log.Error("error handling message", "err", err)
+			}
+		}
+	}()
+
+	c.sendGetConfig()
+	return nil
+}
+func (c *Conn) ConnectOld(ch chan *meshtastic.FromRadio, ch2 chan *meshtastic.ToRadio) error {
 	mode := &serial.Mode{
 		BaudRate: PORT_SPEED,
 	}
@@ -59,7 +169,7 @@ func (c *Conn) Connect(ch chan *meshtastic.FromRadio, ch2 chan *meshtastic.ToRad
 	go func() {
 		for {
 			msg := <-ch2
-			c.sendToRadio(msg)
+			c.SendToRadio(msg)
 		}
 	}()
 	c.sendGetConfig()
@@ -220,7 +330,7 @@ func (c *Conn) flushPort() error {
 	}
 	return nil
 }
-func (c *Conn) sendToRadio(msg *meshtastic.ToRadio) error {
+func (c *Conn) SendToRadio(msg *meshtastic.ToRadio) error {
 	err := c.flushPort()
 	if err != nil {
 		return err
