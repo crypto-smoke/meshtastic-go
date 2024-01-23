@@ -176,8 +176,6 @@ func (c *Conn) ConnectOld(ch chan *meshtastic.FromRadio, ch2 chan *meshtastic.To
 	return nil
 }
 
-var txtCh = make(chan *meshtastic.MeshPacket)
-
 func (c *Conn) decodeProtos(printDebug bool, ch chan *meshtastic.FromRadio) {
 	for {
 		data, err := readUntilProtobuf(c.serialConn, printDebug)
@@ -247,7 +245,7 @@ func readUntilProtobuf(reader io.Reader, printDebug bool) ([]byte, error) {
 }
 
 func (c *Conn) flushPort() error {
-	flush := make([]byte, 32, 32)
+	flush := make([]byte, 32)
 	for j := 0; j < len(flush); j++ {
 		flush[j] = START2
 	}

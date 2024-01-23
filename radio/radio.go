@@ -87,7 +87,6 @@ func GenerateByteSlices() [][]byte {
 }
 
 var ErrDecrypt = errors.New("unable to decrypt payload")
-var otherKeys = GenerateByteSlices()
 
 // xorHash computes a simple XOR hash of the provided byte slice.
 func xorHash(p []byte) uint8 {
