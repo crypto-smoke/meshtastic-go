@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"github.com/charmbracelet/log"
+	"github.com/crypto-smoke/meshtastic-go"
 	"github.com/crypto-smoke/meshtastic-go/emulated"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 )
@@ -16,6 +17,9 @@ func main() {
 		panic(err)
 	}
 	radio, err := emulated.NewRadio(emulated.Config{
+		LongName:   "M7NOA - GPHR",
+		ShortName:  "GPHR",
+		NodeID:     meshtastic.NodeID(6969420),
 		MQTTClient: &mqtt.DefaultClient,
 		Channels: &pb.ChannelSet{
 			Settings: []*pb.ChannelSettings{

@@ -8,12 +8,16 @@ import (
 	"github.com/crypto-smoke/meshtastic-go"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"sync"
+	"time"
 )
 
 type Config struct {
-	ID         string
+	NodeID     meshtastic.NodeID
+	LongName   string
+	ShortName  string
 	Channels   *pb.ChannelSet
 	MQTTClient *mqtt.Client
 }
@@ -24,6 +28,7 @@ type Radio struct {
 	mqtt   *mqtt.Client
 	logger *log.Logger
 
+	// TODO: rwmutex?? seperate mutexes??
 	mu                   sync.Mutex
 	fromRadioSubscribers map[chan<- *pb.FromRadio]struct{}
 	nodeDB               map[uint32]*pb.User
@@ -31,10 +36,11 @@ type Radio struct {
 
 func NewRadio(cfg Config) (*Radio, error) {
 	return &Radio{
-		cfg:    cfg,
-		logger: log.With("radio", cfg.ID),
-		mqtt:   cfg.MQTTClient,
-		nodeDB: map[uint32]*pb.User{},
+		cfg:                  cfg,
+		logger:               log.With("radio", cfg.NodeID.String()),
+		fromRadioSubscribers: map[chan<- *pb.FromRadio]struct{}{},
+		mqtt:                 cfg.MQTTClient,
+		nodeDB:               map[uint32]*pb.User{},
 	}, nil
 }
 
@@ -48,12 +54,25 @@ func (r *Radio) Run(ctx context.Context) error {
 		r.mqtt.Handle(ch.Name, r.handleMQTTMessage)
 	}
 
-	if err := r.sendNodeInfo(ctx); err != nil {
-		r.logger.Error("failed to send node info", "err", err)
-	}
+	eg, egCtx := errgroup.WithContext(ctx)
+	// Spin up goroutine to send NodeInfo every interval
+	eg.Go(func() error {
+		// TODO: Make interval configurable
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			if err := r.sendNodeInfo(ctx); err != nil {
+				r.logger.Error("failed to send node info", "err", err)
+			}
+			select {
+			case <-egCtx.Done():
+				return nil
+			case <-ticker.C:
+			}
+		}
+	})
 
-	<-ctx.Done()
-	return nil
+	return eg.Wait()
 }
 
 func (r *Radio) handleMQTTMessage(msg mqtt.Message) {
@@ -120,7 +139,7 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 		// Update NodeDB
 		r.mu.Lock()
 		r.nodeDB[meshPacket.From] = user
-		r.logger.Info("updated nodeDB", "node_count", len(r.nodeDB))
+		r.logger.Info("updated nodeDB", "node_db", r.nodeDB)
 		r.mu.Unlock()
 	case pb.PortNum_TEXT_MESSAGE_APP:
 		r.logger.Info("received TextMessage", "message", string(data.Payload))
@@ -137,55 +156,81 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 	return nil
 }
 
+func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
+	// TODO: This does not necessarily send on the primary channel.
+	// TODO: Do we try to encrypt the packet here?
+	// TODO: Packet ID should be incremented for each packet sent.
+	se := &pb.ServiceEnvelope{
+		ChannelId: r.cfg.Channels.Settings[0].Name,
+		GatewayId: r.cfg.NodeID.String(),
+		Packet:    packet,
+	}
+	bytes, err := proto.Marshal(se)
+	if err != nil {
+		return fmt.Errorf("marshalling service envelope: %w", err)
+	}
+	return r.mqtt.Publish(&mqtt.Message{
+		Topic:   r.mqtt.GetFullTopicForChannel(r.cfg.Channels.Settings[0].Name) + "/" + r.cfg.NodeID.String(),
+		Payload: bytes,
+	})
+}
+
 func (r *Radio) sendNodeInfo(ctx context.Context) error {
 	// TODO: Lots of stuff missing here. We should use encryption if possible and we should send this every configured
 	// interval. However, this is enough for it to show in the UI of another node listening to the MQTT servr.
-	nodeID := meshtastic.NodeID(6969420)
-
 	user := &pb.User{
-		Id:        nodeID.String(),
-		LongName:  "M7NOA - GPHR",
-		ShortName: "GPHR",
+		Id:        r.cfg.NodeID.String(),
+		LongName:  r.cfg.LongName,
+		ShortName: r.cfg.ShortName,
 		HwModel:   pb.HardwareModel_PRIVATE_HW,
 	}
 	userBytes, err := proto.Marshal(user)
 	if err != nil {
 		return fmt.Errorf("marshalling user: %w", err)
 	}
-	se := &pb.ServiceEnvelope{
-		ChannelId: r.cfg.Channels.Settings[0].Name,
-		GatewayId: nodeID.String(),
-		Packet: &pb.MeshPacket{
-			From: nodeID.Uint32(),
-			To:   3806663900,
-			PayloadVariant: &pb.MeshPacket_Decoded{
-				Decoded: &pb.Data{
-					Portnum: pb.PortNum_NODEINFO_APP,
-					Payload: userBytes,
-				},
+	return r.sendPacket(ctx, &pb.MeshPacket{
+		From: r.cfg.NodeID.Uint32(),
+		// TODO: Calculate the correct To address to use here.
+		To: 3806663900,
+		PayloadVariant: &pb.MeshPacket_Decoded{
+			Decoded: &pb.Data{
+				Portnum: pb.PortNum_NODEINFO_APP,
+				Payload: userBytes,
 			},
 		},
-	}
-	bytes, err := proto.Marshal(se)
-	if err != nil {
-		return fmt.Errorf("marshalling se: %w", err)
-	}
-	return r.mqtt.Publish(&mqtt.Message{
-		Topic:   r.mqtt.GetFullTopicForChannel(r.cfg.Channels.Settings[0].Name) + "/" + nodeID.String(),
-		Payload: bytes,
 	})
 }
 
 // dispatchMessageToFromRadio sends a FromRadio message to all current subscribers to
 // the FromRadio.
 func (r *Radio) dispatchMessageToFromRadio(msg *pb.FromRadio) error {
-	return fmt.Errorf("not implemented")
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for ch := range r.fromRadioSubscribers {
+		// TODO: Make this way safer/resilient
+		ch <- msg
+	}
+	return nil
 }
 
 func (r *Radio) FromRadio(ctx context.Context, ch chan<- *pb.FromRadio) error {
-	return fmt.Errorf("not implemented")
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fromRadioSubscribers[ch] = struct{}{}
+	// TODO: Unsubscribe from the channel when the context is cancelled??
+	return nil
 }
 
 func (r *Radio) ToRadio(ctx context.Context, msg *pb.ToRadio) error {
+	switch payload := msg.PayloadVariant.(type) {
+	case *pb.ToRadio_Disconnect:
+		r.logger.Info("received Disconnect from ToRadio")
+	case *pb.ToRadio_Packet:
+		r.logger.Info("received Packet from ToRadio")
+		// TODO: Do we need to decorate the outgoing packet.
+		return r.sendPacket(ctx, payload.Packet)
+	default:
+		r.logger.Debug("unknown payload variant", "payload", payload)
+	}
 	return fmt.Errorf("not implemented")
 }
