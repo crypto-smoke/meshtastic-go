@@ -48,11 +48,14 @@ func (r *Radio) Run(ctx context.Context) error {
 	if err := r.mqtt.Connect(); err != nil {
 		return fmt.Errorf("connecting to mqtt: %w", err)
 	}
+	// TODO: Disconnect??
 
 	for _, ch := range r.cfg.Channels.Settings {
 		r.logger.Debug("subscribing to mqtt for channel", "channel", ch.Name)
 		r.mqtt.Handle(ch.Name, r.handleMQTTMessage)
 	}
+
+	// TODO: Rethink concurrency. Do we want a goroutine servicing ToRadio and one servicing FromRadio?
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	// Spin up goroutine to send NodeInfo every interval
@@ -91,6 +94,7 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 	meshPacket := serviceEnvelope.Packet
 
 	// TODO: Dispatch to FromRadio subscribers
+	// TODO: Do we need to attempt to decrypt before dispatching to FromRadio subscribers?
 	r.dispatchMessageToFromRadio(&pb.FromRadio{
 		PayloadVariant: &pb.FromRadio_Packet{
 			Packet: meshPacket,
