@@ -17,9 +17,9 @@ func main() {
 		panic(err)
 	}
 	radio, err := emulated.NewRadio(emulated.Config{
-		LongName:   "M7NOA - GPHR",
-		ShortName:  "GPHR",
-		NodeID:     meshtastic.NodeID(6969420),
+		LongName:   "M7NOA - GLNG",
+		ShortName:  "DOGS",
+		NodeID:     meshtastic.NodeID(3735928559),
 		MQTTClient: &mqtt.DefaultClient,
 		Channels: &pb.ChannelSet{
 			Settings: []*pb.ChannelSettings{

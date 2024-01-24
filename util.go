@@ -23,6 +23,12 @@ func (n NodeID) Bytes() []byte {
 	return bytes
 }
 
+// BroadcastNodeID returns the special NodeID used when broadcasting a packet to a channel.
+func BroadcastNodeID() NodeID {
+	// UInt32Max is used as the "to" address when broadcasting a packet for the whole channel to receive.
+	return NodeID(4294967295)
+}
+
 type Node struct {
 	LongName      string
 	ShortName     string

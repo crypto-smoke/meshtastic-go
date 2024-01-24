@@ -32,6 +32,8 @@ type Radio struct {
 	mu                   sync.Mutex
 	fromRadioSubscribers map[chan<- *pb.FromRadio]struct{}
 	nodeDB               map[uint32]*pb.User
+	// packetID is incremented and included in each packet sent from the radio.
+	packetID uint32
 }
 
 func NewRadio(cfg Config) (*Radio, error) {
@@ -73,6 +75,33 @@ func (r *Radio) Run(ctx context.Context) error {
 			case <-ticker.C:
 			}
 		}
+	})
+	eg.Go(func() error {
+		// TODO: Make interval configurable
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			if err := r.sendNodePosition(ctx); err != nil {
+				r.logger.Error("failed to send node position", "err", err)
+			}
+			select {
+			case <-egCtx.Done():
+				return nil
+			case <-ticker.C:
+			}
+		}
+	})
+
+	r.sendPacket(ctx, &pb.MeshPacket{
+		From: r.cfg.NodeID.Uint32(),
+		// TODO: Calculate the correct To address to use here.
+		To: 2437877602,
+		PayloadVariant: &pb.MeshPacket_Decoded{
+			Decoded: &pb.Data{
+				Portnum: pb.PortNum_TEXT_MESSAGE_APP,
+				Payload: []byte("ping!!"),
+			},
+		},
 	})
 
 	return eg.Wait()
@@ -153,6 +182,12 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 			return fmt.Errorf("unmarshalling routingPayload: %w", err)
 		}
 		r.logger.Info("received Routing", "routing", routingPayload)
+	case pb.PortNum_POSITION_APP:
+		positionPayload := &pb.Position{}
+		if err := proto.Unmarshal(data.Payload, positionPayload); err != nil {
+			return fmt.Errorf("unmarshalling positionPayload: %w", err)
+		}
+		r.logger.Info("received Position", "position", positionPayload)
 	default:
 		r.logger.Debug("received unhandled app payload", "data", data)
 	}
@@ -163,7 +198,10 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
 	// TODO: This does not necessarily send on the primary channel.
 	// TODO: Do we try to encrypt the packet here?
-	// TODO: Packet ID should be incremented for each packet sent.
+	r.mu.Lock()
+	r.packetID++
+	packet.Id = r.packetID
+	r.mu.Unlock()
 	se := &pb.ServiceEnvelope{
 		ChannelId: r.cfg.Channels.Settings[0].Name,
 		GatewayId: r.cfg.NodeID.String(),
@@ -180,9 +218,9 @@ func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
 }
 
 func (r *Radio) sendNodeInfo(ctx context.Context) error {
-	r.logger.Info("Starting to broadcast NodeInfo")
-	// TODO: Lots of stuff missing here. We should use encryption if possible and we should send this every configured
-	// interval. However, this is enough for it to show in the UI of another node listening to the MQTT servr.
+	r.logger.Info("starting to broadcast NodeInfo")
+	// TODO: Lots of stuff missing here. However, this is enough for it to show in the UI of another node listening to
+	// the MQTT server.
 	user := &pb.User{
 		Id:        r.cfg.NodeID.String(),
 		LongName:  r.cfg.LongName,
@@ -195,12 +233,37 @@ func (r *Radio) sendNodeInfo(ctx context.Context) error {
 	}
 	return r.sendPacket(ctx, &pb.MeshPacket{
 		From: r.cfg.NodeID.Uint32(),
-		// TODO: Calculate the correct To address to use here.
-		To: 3806663900,
+		To:   meshtastic.BroadcastNodeID().Uint32(),
 		PayloadVariant: &pb.MeshPacket_Decoded{
 			Decoded: &pb.Data{
 				Portnum: pb.PortNum_NODEINFO_APP,
 				Payload: userBytes,
+			},
+		},
+	})
+}
+
+func (r *Radio) sendNodePosition(ctx context.Context) error {
+	// TODO: Make broadcasting positional optional and configurable.
+	r.logger.Info("starting to broadcast NodePosition")
+	position := &pb.Position{
+		// Degrees divided by 1e-7 gives the value to use here.
+		// Buckingham Palace :D
+		LatitudeI:  515014760,
+		LongitudeI: -1406340,
+		Time:       uint32(time.Now().Add(-5 * time.Minute).Unix()),
+	}
+	positionBytes, err := proto.Marshal(position)
+	if err != nil {
+		return fmt.Errorf("marshalling position: %w", err)
+	}
+	return r.sendPacket(ctx, &pb.MeshPacket{
+		From: r.cfg.NodeID.Uint32(),
+		To:   meshtastic.BroadcastNodeID().Uint32(),
+		PayloadVariant: &pb.MeshPacket_Decoded{
+			Decoded: &pb.Data{
+				Portnum: pb.PortNum_POSITION_APP,
+				Payload: positionBytes,
 			},
 		},
 	})
