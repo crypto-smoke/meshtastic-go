@@ -180,6 +180,7 @@ func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
 }
 
 func (r *Radio) sendNodeInfo(ctx context.Context) error {
+	r.logger.Info("Starting to broadcast NodeInfo")
 	// TODO: Lots of stuff missing here. We should use encryption if possible and we should send this every configured
 	// interval. However, this is enough for it to show in the UI of another node listening to the MQTT servr.
 	user := &pb.User{
