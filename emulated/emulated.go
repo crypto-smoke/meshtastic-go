@@ -66,8 +66,8 @@ func (r *Radio) Run(ctx context.Context) error {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {
-			if err := r.sendNodeInfo(ctx); err != nil {
-				r.logger.Error("failed to send node info", "err", err)
+			if err := r.broadcastNodeInfo(ctx); err != nil {
+				r.logger.Error("failed to broadcast node info", "err", err)
 			}
 			select {
 			case <-egCtx.Done():
@@ -81,8 +81,8 @@ func (r *Radio) Run(ctx context.Context) error {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {
-			if err := r.sendNodePosition(ctx); err != nil {
-				r.logger.Error("failed to send node position", "err", err)
+			if err := r.broadcastPosition(ctx); err != nil {
+				r.logger.Error("failed to broadcast position", "err", err)
 			}
 			select {
 			case <-egCtx.Done():
@@ -90,18 +90,6 @@ func (r *Radio) Run(ctx context.Context) error {
 			case <-ticker.C:
 			}
 		}
-	})
-
-	r.sendPacket(ctx, &pb.MeshPacket{
-		From: r.cfg.NodeID.Uint32(),
-		// TODO: Calculate the correct To address to use here.
-		To: 2437877602,
-		PayloadVariant: &pb.MeshPacket_Decoded{
-			Decoded: &pb.Data{
-				Portnum: pb.PortNum_TEXT_MESSAGE_APP,
-				Payload: []byte("ping!!"),
-			},
-		},
 	})
 
 	return eg.Wait()
@@ -197,7 +185,8 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 
 func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
 	// TODO: This does not necessarily send on the primary channel.
-	// TODO: Do we try to encrypt the packet here?
+	// TODO: Optimistically attempt to encrypt the packet here if we recognise the channel, encryption is enabled and
+	// the payload is not currently encrypted.
 	r.mu.Lock()
 	r.packetID++
 	packet.Id = r.packetID
@@ -217,8 +206,8 @@ func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
 	})
 }
 
-func (r *Radio) sendNodeInfo(ctx context.Context) error {
-	r.logger.Info("starting to broadcast NodeInfo")
+func (r *Radio) broadcastNodeInfo(ctx context.Context) error {
+	r.logger.Info("broadcasting NodeInfo")
 	// TODO: Lots of stuff missing here. However, this is enough for it to show in the UI of another node listening to
 	// the MQTT server.
 	user := &pb.User{
@@ -243,9 +232,9 @@ func (r *Radio) sendNodeInfo(ctx context.Context) error {
 	})
 }
 
-func (r *Radio) sendNodePosition(ctx context.Context) error {
+func (r *Radio) broadcastPosition(ctx context.Context) error {
 	// TODO: Make broadcasting positional optional and configurable.
-	r.logger.Info("starting to broadcast NodePosition")
+	r.logger.Info("broadcasting Position")
 	position := &pb.Position{
 		// Degrees divided by 1e-7 gives the value to use here.
 		// Buckingham Palace :D
