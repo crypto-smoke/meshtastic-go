@@ -15,11 +15,47 @@ import (
 )
 
 type Config struct {
-	NodeID     meshtastic.NodeID
-	LongName   string
-	ShortName  string
-	Channels   *pb.ChannelSet
+	// Dependencies
 	MQTTClient *mqtt.Client
+
+	// Node configuration
+	// NodeID is the ID of the node.
+	NodeID meshtastic.NodeID
+	// LongName is the long name of the node.
+	LongName string
+	// ShortName is the short name of the node.
+	ShortName string
+	// Channels is the set of channels the radio will listen and transmit on.
+	// The first channel in the set is considered the primary channel and is used for broadcasting NodeInfo and Position
+	Channels *pb.ChannelSet
+	// BroadcastInterval is the interval at which the radio will broadcast NodeInfo and Position messages.
+	// Defaults to 5 minutes.
+	BroadcastInterval time.Duration
+}
+
+func (c *Config) validate() error {
+	if c.MQTTClient == nil {
+		return fmt.Errorf("MQTTClient is required")
+	}
+	if c.NodeID == 0 {
+		return fmt.Errorf("NodeID is required")
+	}
+	if c.LongName == "" {
+		return fmt.Errorf("LongName is required")
+	}
+	if c.ShortName == "" {
+		return fmt.Errorf("ShortName is required")
+	}
+	if c.Channels == nil {
+		return fmt.Errorf("Channels is required")
+	}
+	if len(c.Channels.Settings) == 0 {
+		return fmt.Errorf("Channels.Settings should be non-empty")
+	}
+	if c.BroadcastInterval == 0 {
+		c.BroadcastInterval = 5 * time.Minute
+	}
+	return nil
 }
 
 // Radio emulates a meshtastic Node, communicating with a meshtastic network via MQTT.
@@ -37,6 +73,9 @@ type Radio struct {
 }
 
 func NewRadio(cfg Config) (*Radio, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, fmt.Errorf("validating config: %w", err)
+	}
 	return &Radio{
 		cfg:                  cfg,
 		logger:               log.With("radio", cfg.NodeID.String()),
@@ -184,7 +223,7 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 }
 
 func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
-	// TODO: This does not necessarily send on the primary channel.
+	// TODO: This should not necessarily send on the primary channel.
 	// TODO: Optimistically attempt to encrypt the packet here if we recognise the channel, encryption is enabled and
 	// the payload is not currently encrypted.
 	r.mu.Lock()
@@ -192,6 +231,7 @@ func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
 	packet.Id = r.packetID
 	r.mu.Unlock()
 	se := &pb.ServiceEnvelope{
+		// TODO: Fetch channel ID based on packet.Channel
 		ChannelId: r.cfg.Channels.Settings[0].Name,
 		GatewayId: r.cfg.NodeID.String(),
 		Packet:    packet,
@@ -222,7 +262,7 @@ func (r *Radio) broadcastNodeInfo(ctx context.Context) error {
 	}
 	return r.sendPacket(ctx, &pb.MeshPacket{
 		From: r.cfg.NodeID.Uint32(),
-		To:   meshtastic.BroadcastNodeID().Uint32(),
+		To:   meshtastic.BroadcastNodeID.Uint32(),
 		PayloadVariant: &pb.MeshPacket_Decoded{
 			Decoded: &pb.Data{
 				Portnum: pb.PortNum_NODEINFO_APP,
@@ -248,7 +288,7 @@ func (r *Radio) broadcastPosition(ctx context.Context) error {
 	}
 	return r.sendPacket(ctx, &pb.MeshPacket{
 		From: r.cfg.NodeID.Uint32(),
-		To:   meshtastic.BroadcastNodeID().Uint32(),
+		To:   meshtastic.BroadcastNodeID.Uint32(),
 		PayloadVariant: &pb.MeshPacket_Decoded{
 			Decoded: &pb.Data{
 				Portnum: pb.PortNum_POSITION_APP,
