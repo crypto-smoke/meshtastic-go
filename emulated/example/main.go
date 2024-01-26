@@ -3,23 +3,24 @@ package main
 import (
 	pb "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"context"
-	"encoding/base64"
 	"github.com/charmbracelet/log"
 	"github.com/crypto-smoke/meshtastic-go"
 	"github.com/crypto-smoke/meshtastic-go/emulated"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
+	"github.com/crypto-smoke/meshtastic-go/radio"
 	"time"
 )
 
 func main() {
+	ctx := context.Background()
 	log.SetLevel(log.DebugLevel)
-	ctx := context.TODO()
-	key, err := base64.URLEncoding.DecodeString("yGwxct335Pb8LdAt8Xk47_00bkbzEFQlwP45Id3HTjQ=")
+
+	key, err := radio.ParseKey("yGwxct335Pb8LdAt8Xk47_00bkbzEFQlwP45Id3HTjQ=")
 	if err != nil {
 		panic(err)
 	}
 	myNodeID := meshtastic.NodeID(3735928559)
-	radio, err := emulated.NewRadio(emulated.Config{
+	r, err := emulated.NewRadio(emulated.Config{
 		LongName:   "M7NOA - GLNG",
 		ShortName:  "DOGS",
 		NodeID:     meshtastic.NodeID(3735928559),
@@ -39,7 +40,7 @@ func main() {
 	go func() {
 		// Forgive me, for I have sinned.
 		time.Sleep(10 * time.Second)
-		err := radio.ToRadio(ctx, &pb.ToRadio{
+		err := r.ToRadio(ctx, &pb.ToRadio{
 			PayloadVariant: &pb.ToRadio_Packet{
 				Packet: &pb.MeshPacket{
 					From: myNodeID.Uint32(),
@@ -58,7 +59,7 @@ func main() {
 			log.Error("sending to radio", "error", err)
 		}
 	}()
-	if err := radio.Run(ctx); err != nil {
+	if err := r.Run(ctx); err != nil {
 		panic(err)
 	}
 }

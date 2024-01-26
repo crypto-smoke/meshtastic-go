@@ -41,9 +41,11 @@ func (c *Config) validate() error {
 		return fmt.Errorf("NodeID is required")
 	}
 	if c.LongName == "" {
+		// TODO: Generate from NodeID
 		return fmt.Errorf("LongName is required")
 	}
 	if c.ShortName == "" {
+		// TODO: Generate from NodeID
 		return fmt.Errorf("ShortName is required")
 	}
 	if c.Channels == nil {
@@ -69,6 +71,7 @@ type Radio struct {
 	fromRadioSubscribers map[chan<- *pb.FromRadio]struct{}
 	nodeDB               map[uint32]*pb.User
 	// packetID is incremented and included in each packet sent from the radio.
+	// TODO: Eventually, we should offer an easy way of persisting this so that we can resume from where we left off.
 	packetID uint32
 }
 
@@ -91,6 +94,7 @@ func (r *Radio) Run(ctx context.Context) error {
 	}
 	// TODO: Disconnect??
 
+	// Subscribe to all configured channels
 	for _, ch := range r.cfg.Channels.Settings {
 		r.logger.Debug("subscribing to mqtt for channel", "channel", ch.Name)
 		r.mqtt.Handle(ch.Name, r.handleMQTTMessage)
@@ -101,25 +105,12 @@ func (r *Radio) Run(ctx context.Context) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	// Spin up goroutine to send NodeInfo every interval
 	eg.Go(func() error {
-		// TODO: Make interval configurable
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(r.cfg.BroadcastInterval)
 		defer ticker.Stop()
 		for {
 			if err := r.broadcastNodeInfo(ctx); err != nil {
 				r.logger.Error("failed to broadcast node info", "err", err)
 			}
-			select {
-			case <-egCtx.Done():
-				return nil
-			case <-ticker.C:
-			}
-		}
-	})
-	eg.Go(func() error {
-		// TODO: Make interval configurable
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for {
 			if err := r.broadcastPosition(ctx); err != nil {
 				r.logger.Error("failed to broadcast position", "err", err)
 			}
@@ -149,13 +140,15 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 	}
 	meshPacket := serviceEnvelope.Packet
 
-	// TODO: Dispatch to FromRadio subscribers
-	// TODO: Do we need to attempt to decrypt before dispatching to FromRadio subscribers?
-	r.dispatchMessageToFromRadio(&pb.FromRadio{
+	// TODO: Attempt decryption first before dispatching to subscribers
+	// TODO: This means we move this further below.
+	if err := r.dispatchMessageToFromRadio(&pb.FromRadio{
 		PayloadVariant: &pb.FromRadio_Packet{
 			Packet: meshPacket,
 		},
-	})
+	}); err != nil {
+		r.logger.Error("failed to dispatch message to FromRadio subscribers", "err", err)
+	}
 
 	// From now on, we only care about messages on the primary channel
 	primaryName := r.cfg.Channels.Settings[0].Name
@@ -171,6 +164,7 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 	case *pb.MeshPacket_Decoded:
 		data = payload.Decoded
 	case *pb.MeshPacket_Encrypted:
+		// TODO: Check if we have the key for this channel
 		plaintext, err := radio.XOR(
 			payload.Encrypted,
 			primaryPSK,
@@ -189,6 +183,7 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 	}
 	r.logger.Debug("received data for primary channel", "data", data)
 
+	// For messages on the primary channel, we want to handle these and potentially update the nodeDB.
 	switch data.Portnum {
 	case pb.PortNum_NODEINFO_APP:
 		user := &pb.User{}
@@ -199,7 +194,6 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 		// Update NodeDB
 		r.mu.Lock()
 		r.nodeDB[meshPacket.From] = user
-		r.logger.Info("updated nodeDB", "node_db", r.nodeDB)
 		r.mu.Unlock()
 	case pb.PortNum_TEXT_MESSAGE_APP:
 		r.logger.Info("received TextMessage", "message", string(data.Payload))
@@ -222,16 +216,22 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 	return nil
 }
 
+func (r *Radio) nextPacketID() uint32 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.packetID++
+	return r.packetID
+}
+
 func (r *Radio) sendPacket(ctx context.Context, packet *pb.MeshPacket) error {
-	// TODO: This should not necessarily send on the primary channel.
 	// TODO: Optimistically attempt to encrypt the packet here if we recognise the channel, encryption is enabled and
 	// the payload is not currently encrypted.
-	r.mu.Lock()
-	r.packetID++
-	packet.Id = r.packetID
-	r.mu.Unlock()
+
+	// sendPacket is responsible for setting the packet ID.
+	r.packetID = r.nextPacketID()
+
 	se := &pb.ServiceEnvelope{
-		// TODO: Fetch channel ID based on packet.Channel
+		// TODO: Fetch channel to use based on packet.Channel rather than hardcoding to primary channel.
 		ChannelId: r.cfg.Channels.Settings[0].Name,
 		GatewayId: r.cfg.NodeID.String(),
 		Packet:    packet,
@@ -273,14 +273,14 @@ func (r *Radio) broadcastNodeInfo(ctx context.Context) error {
 }
 
 func (r *Radio) broadcastPosition(ctx context.Context) error {
-	// TODO: Make broadcasting positional optional and configurable.
 	r.logger.Info("broadcasting Position")
 	position := &pb.Position{
+		// TODO: Make broadcasting positional optional and configurable.
 		// Degrees divided by 1e-7 gives the value to use here.
 		// Buckingham Palace :D
 		LatitudeI:  515014760,
 		LongitudeI: -1406340,
-		Time:       uint32(time.Now().Add(-5 * time.Minute).Unix()),
+		Time:       uint32(time.Now().Unix()),
 	}
 	positionBytes, err := proto.Marshal(position)
 	if err != nil {
@@ -324,7 +324,6 @@ func (r *Radio) ToRadio(ctx context.Context, msg *pb.ToRadio) error {
 		r.logger.Info("received Disconnect from ToRadio")
 	case *pb.ToRadio_Packet:
 		r.logger.Info("received Packet from ToRadio")
-		// TODO: Do we need to decorate the outgoing packet.
 		return r.sendPacket(ctx, payload.Packet)
 	default:
 		r.logger.Debug("unknown payload variant", "payload", payload)
