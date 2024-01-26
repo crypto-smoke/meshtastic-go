@@ -6,9 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/charmbracelet/log"
-	"github.com/kylelemons/godebug/pretty"
-
 	"google.golang.org/protobuf/proto"
 	"strings"
 )
@@ -88,7 +85,6 @@ func GenerateByteSlices() [][]byte {
 }
 
 var ErrDecrypt = errors.New("unable to decrypt payload")
-var otherKeys = GenerateByteSlices()
 
 // xorHash computes a simple XOR hash of the provided byte slice.
 func xorHash(p []byte) uint8 {
@@ -138,28 +134,6 @@ func TryDecode(packet *generated.MeshPacket, key []byte) (*generated.Data, error
 		if err != nil {
 			//		log.Info("failed with supplied key")
 			return nil, ErrDecrypt
-
-			// Below is some test code that tried every other known key, including the rainbow table of single byte keys.
-			for keyCount, k := range otherKeys {
-				decrypted, err := XOR(packet.GetEncrypted(), k, packet.Id, packet.From)
-				if err != nil {
-					continue
-				}
-				err = proto.Unmarshal(decrypted, &meshPacket)
-				if err != nil {
-					continue
-				}
-				log.Info("success", "key index", keyCount, "key", hex.EncodeToString(k), "from", packet.From)
-
-				pretty.Print(meshPacket)
-				return &meshPacket, nil
-			}
-			if strings.Contains(err.Error(), "cannot parse invalid wire-format data") {
-				return nil, ErrDecrypt
-			} else {
-				log.Error("wtf", "err", err)
-			}
-			return nil, err
 		}
 		//fmt.Println("supplied key success")
 		return &meshPacket, nil
