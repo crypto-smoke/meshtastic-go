@@ -70,7 +70,7 @@ type Radio struct {
 	// TODO: rwmutex?? seperate mutexes??
 	mu                   sync.Mutex
 	fromRadioSubscribers map[chan<- *pb.FromRadio]struct{}
-	nodeDB               map[uint32]*pb.User
+	nodeDB               map[uint32]*pb.NodeInfo
 	// packetID is incremented and included in each packet sent from the radio.
 	// TODO: Eventually, we should offer an easy way of persisting this so that we can resume from where we left off.
 	packetID uint32
@@ -86,7 +86,7 @@ func NewRadio(cfg Config) (*Radio, error) {
 		logger:               log.With("radio", cfg.NodeID.String()),
 		fromRadioSubscribers: map[chan<- *pb.FromRadio]struct{}{},
 		mqtt:                 cfg.MQTTClient,
-		nodeDB:               map[uint32]*pb.User{},
+		nodeDB:               map[uint32]*pb.NodeInfo{},
 	}, nil
 }
 
@@ -134,6 +134,20 @@ func (r *Radio) handleMQTTMessage(msg mqtt.Message) {
 	if err := r.tryHandleMQTTMessage(msg); err != nil {
 		r.logger.Error("failed to handle incoming mqtt message", "err", err)
 	}
+}
+
+func (r *Radio) updateNodeDB(nodeID uint32, updateFunc func(*pb.NodeInfo)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	nodeInfo, ok := r.nodeDB[nodeID]
+	if !ok {
+		nodeInfo = &pb.NodeInfo{
+			Num: nodeID,
+		}
+	}
+	updateFunc(nodeInfo)
+	nodeInfo.LastHeard = uint32(time.Now().Unix())
+	r.nodeDB[nodeID] = nodeInfo
 }
 
 func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
@@ -194,10 +208,9 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 			return fmt.Errorf("unmarshalling user: %w", err)
 		}
 		r.logger.Info("received NodeInfo", "user", user)
-		// Update NodeDB
-		r.mu.Lock()
-		r.nodeDB[meshPacket.From] = user
-		r.mu.Unlock()
+		r.updateNodeDB(meshPacket.From, func(nodeInfo *pb.NodeInfo) {
+			nodeInfo.User = user
+		})
 	case pb.PortNum_TEXT_MESSAGE_APP:
 		r.logger.Info("received TextMessage", "message", string(data.Payload))
 	case pb.PortNum_ROUTING_APP:
@@ -212,6 +225,22 @@ func (r *Radio) tryHandleMQTTMessage(msg mqtt.Message) error {
 			return fmt.Errorf("unmarshalling positionPayload: %w", err)
 		}
 		r.logger.Info("received Position", "position", positionPayload)
+		r.updateNodeDB(meshPacket.From, func(nodeInfo *pb.NodeInfo) {
+			nodeInfo.Position = positionPayload
+		})
+	case pb.PortNum_TELEMETRY_APP:
+		telemetryPayload := &pb.Telemetry{}
+		if err := proto.Unmarshal(data.Payload, telemetryPayload); err != nil {
+			return fmt.Errorf("unmarshalling telemetryPayload: %w", err)
+		}
+		deviceMetrics := telemetryPayload.GetDeviceMetrics()
+		if deviceMetrics == nil {
+			break
+		}
+		r.logger.Info("received Telemetry deviceMetrics", "telemetry", telemetryPayload)
+		r.updateNodeDB(meshPacket.From, func(nodeInfo *pb.NodeInfo) {
+			nodeInfo.DeviceMetrics = deviceMetrics
+		})
 	default:
 		r.logger.Debug("received unhandled app payload", "data", data)
 	}
