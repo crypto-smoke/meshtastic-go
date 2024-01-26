@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// Config is the configuration for the emulated Radio.
 type Config struct {
 	// Dependencies
 	MQTTClient *mqtt.Client
@@ -75,6 +76,7 @@ type Radio struct {
 	packetID uint32
 }
 
+// NewRadio creates a new emulated radio.
 func NewRadio(cfg Config) (*Radio, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
@@ -88,6 +90,7 @@ func NewRadio(cfg Config) (*Radio, error) {
 	}, nil
 }
 
+// Run starts the radio. It blocks until the context is cancelled.
 func (r *Radio) Run(ctx context.Context) error {
 	if err := r.mqtt.Connect(); err != nil {
 		return fmt.Errorf("connecting to mqtt: %w", err)
@@ -310,6 +313,7 @@ func (r *Radio) dispatchMessageToFromRadio(msg *pb.FromRadio) error {
 	return nil
 }
 
+// FromRadio subscribes to messages from the radio.
 func (r *Radio) FromRadio(ctx context.Context, ch chan<- *pb.FromRadio) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -318,6 +322,7 @@ func (r *Radio) FromRadio(ctx context.Context, ch chan<- *pb.FromRadio) error {
 	return nil
 }
 
+// ToRadio sends a message to the radio.
 func (r *Radio) ToRadio(ctx context.Context, msg *pb.ToRadio) error {
 	switch payload := msg.PayloadVariant.(type) {
 	case *pb.ToRadio_Disconnect:
