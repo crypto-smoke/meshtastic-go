@@ -3,11 +3,9 @@ package radio
 import (
 	generated "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
-	"strings"
 )
 
 // not sure what i was getting at with this
