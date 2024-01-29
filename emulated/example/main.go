@@ -23,8 +23,6 @@ func main() {
 		panic(err)
 	}
 	r, err := emulated.NewRadio(emulated.Config{
-		LongName:   "EXAMPLE",
-		ShortName:  "EMPL",
 		NodeID:     nodeID,
 		MQTTClient: &mqtt.DefaultClient,
 		Channels: &pb.ChannelSet{

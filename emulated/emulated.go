@@ -52,12 +52,10 @@ func (c *Config) validate() error {
 		return fmt.Errorf("NodeID is required")
 	}
 	if c.LongName == "" {
-		// TODO: Generate from NodeID
-		return fmt.Errorf("LongName is required")
+		c.LongName = c.NodeID.DefaultLongName()
 	}
 	if c.ShortName == "" {
-		// TODO: Generate from NodeID
-		return fmt.Errorf("ShortName is required")
+		c.ShortName = c.NodeID.DefaultShortName()
 	}
 	if c.Channels == nil {
 		return fmt.Errorf("Channels is required")
