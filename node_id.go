@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/big"
 )
 
 // NodeID holds the node identifier. This is a uint32 value which uniquely identifies a node within a mesh.
@@ -61,11 +62,16 @@ func (n NodeID) DefaultShortName() string {
 // use or invalid, a random NodeID is generated.
 // Source: https://github.com/meshtastic/firmware/blob/d1ea58975755e146457a8345065e4ca357555275/src/mesh/NodeDB.cpp#L466
 func RandomNodeID() (NodeID, error) {
-	randBytes := make([]byte, 4)
-	// TODO: Ensure generated value is not below ReservedNodeIDThreshold and not BroadcastNodeID
-	_, err := rand.Read(randBytes)
+	// Generates a random uint32 between reservedNodeIDThreshold and math.MaxUint32
+	randomInt, err := rand.Int(
+		rand.Reader,
+		big.NewInt(
+			int64(math.MaxUint32-reservedNodeIDThreshold.Uint32()),
+		),
+	)
 	if err != nil {
 		return NodeID(0), fmt.Errorf("reading entropy: %w", err)
 	}
-	return NodeID(binary.BigEndian.Uint32(randBytes)), nil
+	r := uint32(randomInt.Uint64()) + reservedNodeIDThreshold.Uint32()
+	return NodeID(r), nil
 }
