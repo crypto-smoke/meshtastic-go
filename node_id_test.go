@@ -50,3 +50,21 @@ func TestNodeID_DefaultLongName(t *testing.T) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
 }
+
+// TestRandomNodeID ensures that RandomNodeID generates a valid NodeID and that multiple calls generate different
+// NodeIDs.
+func TestRandomNodeID(t *testing.T) {
+	nodeID1, err := RandomNodeID()
+	if err != nil {
+		t.Errorf("expected no error when generating the first node id, got %v", err)
+	}
+	t.Logf("nodeID1: %s", nodeID1)
+	nodeID2, err := RandomNodeID()
+	if err != nil {
+		t.Errorf("expected no error when generating the second node id, got %v", err)
+	}
+	t.Logf("nodeID2: %s", nodeID2)
+	if nodeID1 == nodeID2 {
+		t.Errorf("expected random node ids to be different, got %s and %s", nodeID1, nodeID2)
+	}
+}
