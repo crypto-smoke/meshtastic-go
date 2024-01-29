@@ -22,7 +22,7 @@ func main() {
 	r, err := emulated.NewRadio(emulated.Config{
 		LongName:   "EXAMPLE",
 		ShortName:  "EMPL",
-		NodeID:     meshtastic.NodeID(3735928559),
+		NodeID:     myNodeID,
 		MQTTClient: &mqtt.DefaultClient,
 		Channels: &pb.ChannelSet{
 			Settings: []*pb.ChannelSettings{
@@ -32,6 +32,8 @@ func main() {
 				},
 			},
 		},
+		BroadcastNodeInfoInterval: 5 * time.Minute,
+		BroadcastPositionInterval: 5 * time.Minute,
 	})
 	if err != nil {
 		panic(err)

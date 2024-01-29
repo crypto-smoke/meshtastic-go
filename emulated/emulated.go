@@ -29,9 +29,12 @@ type Config struct {
 	// Channels is the set of channels the radio will listen and transmit on.
 	// The first channel in the set is considered the primary channel and is used for broadcasting NodeInfo and Position
 	Channels *pb.ChannelSet
-	// BroadcastInterval is the interval at which the radio will broadcast NodeInfo and Position messages.
-	// Defaults to 5 minutes.
-	BroadcastInterval time.Duration
+	// BroadcastNodeInfoInterval is the interval at which the radio will broadcast a NodeInfo on the Primary channel.
+	// The zero value disables broadcasting NodeInfo.
+	BroadcastNodeInfoInterval time.Duration
+	// BroadcastPositionInterval is the interval at which the radio will broadcast Position on the Primary channel.
+	// The zero value disables broadcasting NodeInfo.
+	BroadcastPositionInterval time.Duration
 }
 
 func (c *Config) validate() error {
@@ -54,9 +57,6 @@ func (c *Config) validate() error {
 	}
 	if len(c.Channels.Settings) == 0 {
 		return fmt.Errorf("Channels.Settings should be non-empty")
-	}
-	if c.BroadcastInterval == 0 {
-		c.BroadcastInterval = 5 * time.Minute
 	}
 	return nil
 }
@@ -107,23 +107,39 @@ func (r *Radio) Run(ctx context.Context) error {
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	// Spin up goroutine to send NodeInfo every interval
-	eg.Go(func() error {
-		ticker := time.NewTicker(r.cfg.BroadcastInterval)
-		defer ticker.Stop()
-		for {
-			if err := r.broadcastNodeInfo(ctx); err != nil {
-				r.logger.Error("failed to broadcast node info", "err", err)
+	if r.cfg.BroadcastNodeInfoInterval > 0 {
+		eg.Go(func() error {
+			ticker := time.NewTicker(r.cfg.BroadcastNodeInfoInterval)
+			defer ticker.Stop()
+			for {
+				if err := r.broadcastNodeInfo(egCtx); err != nil {
+					r.logger.Error("failed to broadcast node info", "err", err)
+				}
+				select {
+				case <-egCtx.Done():
+					return nil
+				case <-ticker.C:
+				}
 			}
-			if err := r.broadcastPosition(ctx); err != nil {
-				r.logger.Error("failed to broadcast position", "err", err)
+		})
+	}
+	// Spin up goroutine to send Position every interval
+	if r.cfg.BroadcastPositionInterval > 0 {
+		eg.Go(func() error {
+			ticker := time.NewTicker(r.cfg.BroadcastPositionInterval)
+			defer ticker.Stop()
+			for {
+				if err := r.broadcastPosition(egCtx); err != nil {
+					r.logger.Error("failed to broadcast position", "err", err)
+				}
+				select {
+				case <-egCtx.Done():
+					return nil
+				case <-ticker.C:
+				}
 			}
-			select {
-			case <-egCtx.Done():
-				return nil
-			case <-ticker.C:
-			}
-		}
-	})
+		})
+	}
 
 	return eg.Wait()
 }
