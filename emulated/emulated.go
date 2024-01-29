@@ -32,9 +32,16 @@ type Config struct {
 	// BroadcastNodeInfoInterval is the interval at which the radio will broadcast a NodeInfo on the Primary channel.
 	// The zero value disables broadcasting NodeInfo.
 	BroadcastNodeInfoInterval time.Duration
+
 	// BroadcastPositionInterval is the interval at which the radio will broadcast Position on the Primary channel.
 	// The zero value disables broadcasting NodeInfo.
 	BroadcastPositionInterval time.Duration
+	// PositionLatitudeI is the latitude of the position which will be regularly broadcasted.
+	// This is in degrees multiplied by 1e7.
+	PositionLatitudeI int32
+	// PositionLongitudeI is the longitude of the position which will be regularly broadcasted.
+	// This is in degrees multiplied by 1e7.
+	PositionLongitudeI int32
 }
 
 func (c *Config) validate() error {
@@ -323,11 +330,8 @@ func (r *Radio) broadcastNodeInfo(ctx context.Context) error {
 func (r *Radio) broadcastPosition(ctx context.Context) error {
 	r.logger.Info("broadcasting Position")
 	position := &pb.Position{
-		// TODO: Make broadcasting positional optional and configurable.
-		// Degrees divided by 1e-7 gives the value to use here.
-		// Buckingham Palace :D
-		LatitudeI:  515014760,
-		LongitudeI: -1406340,
+		LatitudeI:  r.cfg.PositionLatitudeI,
+		LongitudeI: r.cfg.PositionLongitudeI,
 		Time:       uint32(time.Now().Unix()),
 	}
 	positionBytes, err := proto.Marshal(position)
