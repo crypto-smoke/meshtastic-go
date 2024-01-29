@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const MQTTProtoTopic = "/2/c/"
+
 type Client struct {
 	server    string
 	username  string
@@ -26,7 +28,7 @@ var DefaultClient = Client{
 	server:    "tcp://mqtt.meshtastic.org:1883",
 	username:  "meshdev",
 	password:  "large4cats",
-	topicRoot: "msh/2", //TODO: this will need to change
+	topicRoot: "msh", //TODO: this will need to change
 
 	channelHandlers: make(map[string][]HandlerFunc),
 }
@@ -108,11 +110,13 @@ func (c *Client) Handle(channel string, h HandlerFunc) {
 	c.channelHandlers[channel] = append(c.channelHandlers[channel], h)
 	c.client.Subscribe(topic+"/+", 0, c.handleBrokerMessage)
 }
+
 func (c *Client) GetFullTopicForChannel(channel string) string {
-	return c.topicRoot + "/c/" + channel
+	return c.topicRoot + MQTTProtoTopic + channel
 }
+
 func (c *Client) GetChannelFromTopic(topic string) string {
-	trimmed := strings.TrimPrefix(topic, c.topicRoot+"/c/")
+	trimmed := strings.TrimPrefix(topic, c.topicRoot+MQTTProtoTopic)
 	sepIndex := strings.Index(trimmed, "/")
 	if sepIndex > 0 {
 		return trimmed[:sepIndex]
