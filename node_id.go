@@ -40,7 +40,9 @@ func (n NodeID) Bytes() []byte {
 // DefaultLongName returns the default long node name based on the NodeID.
 // Source: https://github.com/meshtastic/firmware/blob/d1ea58975755e146457a8345065e4ca357555275/src/mesh/NodeDB.cpp#L382
 func (n NodeID) DefaultLongName() string {
-	return "Meshtastic " + n.DefaultShortName()
+	bytes := make([]byte, 4) // uint32 is 4 bytes
+	binary.BigEndian.PutUint32(bytes, n.Uint32())
+	return fmt.Sprintf("Meshtastic %04x", bytes[2:])
 }
 
 // DefaultShortName returns the default short node name based on the NodeID.
