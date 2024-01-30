@@ -33,11 +33,12 @@ func main() {
 			},
 		},
 		BroadcastNodeInfoInterval: 5 * time.Minute,
-		
+
 		BroadcastPositionInterval: 5 * time.Minute,
 		// Hardcoded to the position of Buckingham Palace.
 		PositionLatitudeI:  515014760,
 		PositionLongitudeI: -1406340,
+		PositionAltitude:   2,
 	})
 	if err != nil {
 		panic(err)
