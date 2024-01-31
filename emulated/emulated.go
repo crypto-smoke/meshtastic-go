@@ -63,6 +63,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("ShortName is required")
 	}
 	if c.Channels == nil {
+		//lint:ignore ST1005 we're referencing an actual field here.
 		return fmt.Errorf("Channels is required")
 	}
 	if len(c.Channels.Settings) == 0 {
