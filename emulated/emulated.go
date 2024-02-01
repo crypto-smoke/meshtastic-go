@@ -42,6 +42,9 @@ type Config struct {
 	// PositionLongitudeI is the longitude of the position which will be regularly broadcasted.
 	// This is in degrees multiplied by 1e7.
 	PositionLongitudeI int32
+	// PositionAltitude is the altitude of the position which will be regularly broadcasted.
+	// This is in meters above MSL.
+	PositionAltitude int32
 }
 
 func (c *Config) validate() error {
@@ -58,6 +61,7 @@ func (c *Config) validate() error {
 		c.ShortName = c.NodeID.DefaultShortName()
 	}
 	if c.Channels == nil {
+		//lint:ignore ST1005 we're referencing an actual field here.
 		return fmt.Errorf("Channels is required")
 	}
 	if len(c.Channels.Settings) == 0 {
@@ -330,6 +334,7 @@ func (r *Radio) broadcastPosition(ctx context.Context) error {
 	position := &pb.Position{
 		LatitudeI:  r.cfg.PositionLatitudeI,
 		LongitudeI: r.cfg.PositionLongitudeI,
+		Altitude:   r.cfg.PositionAltitude,
 		Time:       uint32(time.Now().Unix()),
 	}
 	positionBytes, err := proto.Marshal(position)

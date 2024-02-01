@@ -23,6 +23,8 @@ func main() {
 		panic(err)
 	}
 	r, err := emulated.NewRadio(emulated.Config{
+		LongName:   "EXAMPLE",
+		ShortName:  "EMPL",
 		NodeID:     nodeID,
 		MQTTClient: &mqtt.DefaultClient,
 		Channels: &pb.ChannelSet{
@@ -39,6 +41,7 @@ func main() {
 		// Hardcoded to the position of Buckingham Palace.
 		PositionLatitudeI:  515014760,
 		PositionLongitudeI: -1406340,
+		PositionAltitude:   2,
 	})
 	if err != nil {
 		panic(err)
