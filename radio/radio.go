@@ -2,11 +2,10 @@ package radio
 
 import (
 	generated "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
-	b64 "encoding/base64"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
-	"strings"
 )
 
 // not sure what i was getting at with this
@@ -37,12 +36,9 @@ type Something struct {
 // as base64: 1PG7OiApB1nwvP+rz05pAQ==
 var DefaultKey = []byte{0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59, 0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01}
 
-// clean up a base64 key that has been rendered safe for use in a URL
-func ParseKey(key string) []byte {
-	key = strings.ReplaceAll(key, "-", "+")
-	key = strings.ReplaceAll(key, "_", "/")
-	sDec, _ := b64.StdEncoding.DecodeString(key)
-	return sDec
+// ParseKey converts the most common representation of a channel encryption key (URL encoded base64) to a byte slice
+func ParseKey(key string) ([]byte, error) {
+	return base64.URLEncoding.DecodeString(key)
 }
 
 func NewThing() *Something {

@@ -4,6 +4,7 @@ import (
 	pbuf "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"encoding/binary"
 	"fmt"
+	"math"
 )
 
 type NodeID uint32
@@ -22,6 +23,9 @@ func (n NodeID) Bytes() []byte {
 	binary.BigEndian.PutUint32(bytes, n.Uint32())
 	return bytes
 }
+
+// BroadcastNodeID is the special NodeID used when broadcasting a packet to a channel.
+const BroadcastNodeID NodeID = math.MaxUint32
 
 type Node struct {
 	LongName      string
