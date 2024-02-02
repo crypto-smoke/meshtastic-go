@@ -18,11 +18,14 @@ func main() {
 	ctx := context.Background()
 	log.SetLevel(log.DebugLevel)
 
-	myNodeID := meshtastic.NodeID(3735928559)
+	nodeID, err := meshtastic.RandomNodeID()
+	if err != nil {
+		panic(err)
+	}
 	r, err := emulated.NewRadio(emulated.Config{
 		LongName:   "EXAMPLE",
 		ShortName:  "EMPL",
-		NodeID:     myNodeID,
+		NodeID:     nodeID,
 		MQTTClient: &mqtt.DefaultClient,
 		Channels: &pb.ChannelSet{
 			Settings: []*pb.ChannelSettings{
@@ -65,7 +68,7 @@ func main() {
 		err := r.ToRadio(egCtx, &pb.ToRadio{
 			PayloadVariant: &pb.ToRadio_Packet{
 				Packet: &pb.MeshPacket{
-					From: myNodeID.Uint32(),
+					From: nodeID.Uint32(),
 					// This is hard coded to Noah's node ID
 					To: 2437877602,
 					PayloadVariant: &pb.MeshPacket_Decoded{
