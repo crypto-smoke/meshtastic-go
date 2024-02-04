@@ -12,8 +12,11 @@ type usbDevice struct {
 }
 
 var knownDevices = []usbDevice{
-	{VID: "239A", PID: "8029"}, // rak4631_19003
-	{VID: "10C4", PID: "EA60"}, // heltec
+	// rak4631_19003
+	{VID: "239A", PID: "8029"},
+	// CP210x UART Bridge
+	// Commonly found on Heltec and other devices.
+	{VID: "10C4", PID: "EA60"},
 }
 
 func GetPorts() []string {
