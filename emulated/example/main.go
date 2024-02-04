@@ -9,6 +9,7 @@ import (
 	"github.com/crypto-smoke/meshtastic-go/emulated"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
+	"github.com/crypto-smoke/meshtastic-go/transport/serial"
 	"golang.org/x/sync/errgroup"
 	"time"
 )
@@ -48,7 +49,6 @@ func main() {
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
-
 	eg.Go(func() error {
 		if err := r.Run(egCtx); err != nil {
 			return fmt.Errorf("running radio: %w", err)
@@ -57,15 +57,12 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		// Forgive me, for I have sinned.
-		// TODO: We need a way of knowing the radio has come up and is ready that's better than waiting ten seconds.
-		select {
-		case <-egCtx.Done():
-			return nil
-		case <-time.After(10 * time.Second):
+		conn, err := serial.NewClientStreamConn(r.Conn(egCtx))
+		if err != nil {
+			return fmt.Errorf("creating connection: %w", err)
 		}
 
-		err := r.ToRadio(egCtx, &pb.ToRadio{
+		msg := &pb.ToRadio{
 			PayloadVariant: &pb.ToRadio_Packet{
 				Packet: &pb.MeshPacket{
 					From: nodeID.Uint32(),
@@ -79,29 +76,22 @@ func main() {
 					},
 				},
 			},
-		})
-		if err != nil {
-			return fmt.Errorf("sending to radio: %w", err)
 		}
-
-		return nil
-	})
-
-	eg.Go(func() error {
-		ch := make(chan *pb.FromRadio)
-		defer close(ch)
-		err := r.FromRadio(egCtx, ch)
-		if err != nil {
-			return fmt.Errorf("setting up FromRadio subscriber: %w", err)
+		if err := conn.Write(msg); err != nil {
+			return fmt.Errorf("writing to radio: %w", err)
 		}
 
 		for {
 			select {
 			case <-egCtx.Done():
 				return nil
-			case fromRadio := <-ch:
-				log.Info("FromRadio!!", "packet", fromRadio)
+			default:
 			}
+			msg := &pb.FromRadio{}
+			if err := conn.Read(msg); err != nil {
+				return fmt.Errorf("reading from radio: %w", err)
+			}
+			log.Info("FromRadio!!", "packet", msg)
 		}
 	})
 

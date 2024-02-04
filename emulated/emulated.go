@@ -17,6 +17,11 @@ import (
 	"time"
 )
 
+const (
+	// MinAppVersion is the minimum app version supported by the emulated radio.
+	MinAppVersion = 30200
+)
+
 // Config is the configuration for the emulated Radio.
 type Config struct {
 	// Dependencies
@@ -382,50 +387,6 @@ func (r *Radio) dispatchMessageToFromRadio(msg *pb.FromRadio) error {
 	return nil
 }
 
-// FromRadio subscribes to messages from the radio.
-func (r *Radio) FromRadio(ctx context.Context, ch chan<- *pb.FromRadio) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.fromRadioSubscribers[ch] = struct{}{}
-	// TODO: Unsubscribe from the channel when the context is cancelled??
-	return nil
-}
-
-// ToRadio sends a message to the radio.
-func (r *Radio) ToRadio(ctx context.Context, msg *pb.ToRadio) error {
-	switch payload := msg.PayloadVariant.(type) {
-	case *pb.ToRadio_Disconnect:
-		r.logger.Info("received Disconnect from ToRadio")
-	case *pb.ToRadio_Packet:
-		r.logger.Info("received Packet from ToRadio")
-		return r.sendPacket(ctx, payload.Packet)
-	default:
-		r.logger.Debug("unknown payload variant", "payload", payload)
-	}
-	return fmt.Errorf("not implemented")
-}
-
-// TODO: Make listener configurable
-func (r *Radio) listenTCP(ctx context.Context) error {
-	l, err := net.Listen("tcp", "localhost:4403")
-	if err != nil {
-		return fmt.Errorf("listening: %w", err)
-	}
-
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			r.logger.Error("failed to accept connection", "err", err)
-			continue
-		}
-		go func() {
-			if err := r.handleConn(ctx, c); err != nil {
-				r.logger.Error("failed to handle connection", "err", err)
-			}
-		}()
-	}
-}
-
 func (r *Radio) handleToRadioWantConfigID(conn *serial.StreamConn, req *pb.ToRadio_WantConfigId) error {
 	// Send MyInfo
 	err := conn.Write(&pb.FromRadio{
@@ -434,7 +395,7 @@ func (r *Radio) handleToRadioWantConfigID(conn *serial.StreamConn, req *pb.ToRad
 				MyNodeNum:   r.cfg.NodeID.Uint32(),
 				RebootCount: 0,
 				// TODO: Track this as a const
-				MinAppVersion: 30200,
+				MinAppVersion: MinAppVersion,
 			},
 		},
 	})
@@ -543,76 +504,138 @@ func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) e
 		}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-		msg := &pb.ToRadio{}
-		if err := streamConn.Read(msg); err != nil {
-			return fmt.Errorf("reading from streamConn: %w", err)
-		}
-		r.logger.Info("received ToRadio from streamConn", "msg", msg)
-		switch payload := msg.PayloadVariant.(type) {
-		case *pb.ToRadio_Disconnect:
-			// The meshtastic python client sends a Disconnect command and with the TCP implementation, it expects
-			// the radio to close the connection. So we end the read loop here, and return to close the connection.
-			return nil
-		case *pb.ToRadio_WantConfigId:
-			if err := r.handleToRadioWantConfigID(streamConn, payload); err != nil {
-				return fmt.Errorf("handling WantConfigId: %w", err)
+	eg, egCtx := errgroup.WithContext(ctx)
+	// Handling messages coming from client
+	eg.Go(func() error {
+		for {
+			select {
+			case <-egCtx.Done():
+				return nil
+			default:
 			}
-		case *pb.ToRadio_Packet:
-			if decoded := payload.Packet.GetDecoded(); decoded != nil {
-				if decoded.Portnum == pb.PortNum_ADMIN_APP {
-					admin := &pb.AdminMessage{}
-					if err := proto.Unmarshal(decoded.Payload, admin); err != nil {
-						return fmt.Errorf("unmarshalling admin: %w", err)
-					}
+			msg := &pb.ToRadio{}
+			if err := streamConn.Read(msg); err != nil {
+				return fmt.Errorf("reading from streamConn: %w", err)
+			}
+			r.logger.Info("received ToRadio from streamConn", "msg", msg)
+			switch payload := msg.PayloadVariant.(type) {
+			case *pb.ToRadio_Disconnect:
+				// The meshtastic python client sends a Disconnect command and with the TCP implementation, it expects
+				// the radio to close the connection. So we end the read loop here, and return to close the connection.
+				return nil
+			case *pb.ToRadio_WantConfigId:
+				if err := r.handleToRadioWantConfigID(streamConn, payload); err != nil {
+					return fmt.Errorf("handling WantConfigId: %w", err)
+				}
+			case *pb.ToRadio_Packet:
+				if decoded := payload.Packet.GetDecoded(); decoded != nil {
+					if decoded.Portnum == pb.PortNum_ADMIN_APP {
+						admin := &pb.AdminMessage{}
+						if err := proto.Unmarshal(decoded.Payload, admin); err != nil {
+							return fmt.Errorf("unmarshalling admin: %w", err)
+						}
 
-					switch adminPayload := admin.PayloadVariant.(type) {
-					// TODO: Properly handle channel listing, this hack is just so the Python CLI thinks
-					// it's connected
-					case *pb.AdminMessage_GetChannelRequest:
-						r.logger.Info("received GetChannelRequest", "adminPayload", adminPayload, "packet", payload)
-						resp := &pb.AdminMessage{
-							PayloadVariant: &pb.AdminMessage_GetChannelResponse{
-								GetChannelResponse: &pb.Channel{
-									Index: 0,
-									Settings: &pb.ChannelSettings{
-										Psk: nil,
+						switch adminPayload := admin.PayloadVariant.(type) {
+						// TODO: Properly handle channel listing, this hack is just so the Python CLI thinks
+						// it's connected
+						case *pb.AdminMessage_GetChannelRequest:
+							r.logger.Info("received GetChannelRequest", "adminPayload", adminPayload, "packet", payload)
+							resp := &pb.AdminMessage{
+								PayloadVariant: &pb.AdminMessage_GetChannelResponse{
+									GetChannelResponse: &pb.Channel{
+										Index: 0,
+										Settings: &pb.ChannelSettings{
+											Psk: nil,
+										},
+										Role: pb.Channel_DISABLED,
 									},
-									Role: pb.Channel_DISABLED,
 								},
-							},
-						}
-						respBytes, err := proto.Marshal(resp)
-						if err != nil {
-							return fmt.Errorf("marshalling GetChannelResponse: %w", err)
-						}
-						// Send GetChannelResponse
-						if err := streamConn.Write(&pb.FromRadio{
-							PayloadVariant: &pb.FromRadio_Packet{
-								Packet: &pb.MeshPacket{
-									Id:   r.nextPacketID(),
-									From: r.cfg.NodeID.Uint32(),
-									To:   r.cfg.NodeID.Uint32(),
-									PayloadVariant: &pb.MeshPacket_Decoded{
-										Decoded: &pb.Data{
-											Portnum:   pb.PortNum_ADMIN_APP,
-											Payload:   respBytes,
-											RequestId: payload.Packet.Id,
+							}
+							respBytes, err := proto.Marshal(resp)
+							if err != nil {
+								return fmt.Errorf("marshalling GetChannelResponse: %w", err)
+							}
+							// Send GetChannelResponse
+							if err := streamConn.Write(&pb.FromRadio{
+								PayloadVariant: &pb.FromRadio_Packet{
+									Packet: &pb.MeshPacket{
+										Id:   r.nextPacketID(),
+										From: r.cfg.NodeID.Uint32(),
+										To:   r.cfg.NodeID.Uint32(),
+										PayloadVariant: &pb.MeshPacket_Decoded{
+											Decoded: &pb.Data{
+												Portnum:   pb.PortNum_ADMIN_APP,
+												Payload:   respBytes,
+												RequestId: payload.Packet.Id,
+											},
 										},
 									},
 								},
-							},
-						}); err != nil {
-							return fmt.Errorf("writing to streamConn: %w", err)
+							}); err != nil {
+								return fmt.Errorf("writing to streamConn: %w", err)
+							}
 						}
 					}
 				}
 			}
 		}
+	})
+	// Handle sending messages to client
+	eg.Go(func() error {
+		ch := make(chan *pb.FromRadio)
+		r.mu.Lock()
+		r.fromRadioSubscribers[ch] = struct{}{}
+		r.mu.Unlock()
+		defer func() {
+			r.mu.Lock()
+			delete(r.fromRadioSubscribers, ch)
+			r.mu.Unlock()
+		}()
+
+		for {
+			select {
+			case <-egCtx.Done():
+				return nil
+			case msg := <-ch:
+				if err := streamConn.Write(msg); err != nil {
+					return fmt.Errorf("writing to streamConn: %w", err)
+				}
+			}
+		}
+	})
+
+	return eg.Wait()
+}
+
+// TODO: Make listener configurable
+func (r *Radio) listenTCP(ctx context.Context) error {
+	l, err := net.Listen("tcp", "localhost:4403")
+	if err != nil {
+		return fmt.Errorf("listening: %w", err)
 	}
+	r.logger.Info("listening for tcp connections", "addr", "localhost:4403")
+
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			r.logger.Error("failed to accept connection", "err", err)
+			continue
+		}
+		go func() {
+			if err := r.handleConn(ctx, c); err != nil {
+				r.logger.Error("failed to handle connection", "err", err)
+			}
+		}()
+	}
+}
+
+// Conn returns an in-memory connection to the emulated radio.
+func (r *Radio) Conn(ctx context.Context) net.Conn {
+	clientConn, radioConn := net.Pipe()
+	go func() {
+		if err := r.handleConn(ctx, radioConn); err != nil {
+			r.logger.Error("failed to handle connection", "err", err)
+		}
+	}()
+	return clientConn
 }
