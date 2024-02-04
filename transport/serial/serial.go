@@ -14,16 +14,13 @@ import (
 )
 
 const (
-	WAIT_AFTER_WAKE = 100 * time.Millisecond
-	START1          = 0x94
-	START2          = 0xc3
-	PACKET_MTU      = 512
-	PORT_SPEED      = 115200 //921600
+	PORT_SPEED = 115200 //921600
 )
 
 type HandlerFunc func(message proto.Message)
 
 // Serial connection to a node
+// TODO: Refactor this as a "Client" that abstracts over StreamConn
 type Conn struct {
 	serialPort string
 	serialConn serial.Port
@@ -195,13 +192,13 @@ func (c *Conn) decodeProtos(printDebug bool, ch chan *meshtastic.FromRadio) {
 func readUntilProtobuf(reader io.Reader, printDebug bool) ([]byte, error) {
 	buf := make([]byte, 4)
 	for {
-		// Read the first byte, looking for START1.
+		// Read the first byte, looking for Start1.
 		_, err := io.ReadFull(reader, buf[:1])
 		if err != nil {
 			return nil, err
 		}
 
-		// Check for START1.
+		// Check for Start1.
 		if buf[0] != 0x94 {
 			if printDebug {
 				fmt.Print(string(buf[0]))
@@ -209,13 +206,13 @@ func readUntilProtobuf(reader io.Reader, printDebug bool) ([]byte, error) {
 			continue
 		}
 
-		// Read the second byte, looking for START2.
+		// Read the second byte, looking for Start2.
 		_, err = io.ReadFull(reader, buf[1:2])
 		if err != nil {
 			return nil, err
 		}
 
-		// Check for START2.
+		// Check for Start2.
 		if buf[1] != 0xc3 {
 			continue
 		}
@@ -227,7 +224,7 @@ func readUntilProtobuf(reader io.Reader, printDebug bool) ([]byte, error) {
 		}
 
 		length := int(binary.BigEndian.Uint16(buf[2:]))
-		if length > PACKET_MTU {
+		if length > PacketMTU {
 			//packet corrupt, start over
 			continue
 		}
@@ -247,7 +244,7 @@ func readUntilProtobuf(reader io.Reader, printDebug bool) ([]byte, error) {
 func (c *Conn) flushPort() error {
 	flush := make([]byte, 32)
 	for j := 0; j < len(flush); j++ {
-		flush[j] = START2
+		flush[j] = Start2
 	}
 	_, err := c.serialConn.Write(flush)
 	if err != nil {
@@ -265,10 +262,10 @@ func (c *Conn) SendToRadio(msg *meshtastic.ToRadio) error {
 	if err != nil {
 		panic(err)
 	}
-	time.Sleep(WAIT_AFTER_WAKE)
+	time.Sleep(WaitAfterWake)
 
 	datalen := len(data)
-	header := []byte{START1, START2, byte(datalen >> 8), byte(datalen)}
+	header := []byte{Start1, Start2, byte(datalen >> 8), byte(datalen)}
 	data = append(header, data...)
 	_, err = c.serialConn.Write(data)
 	if err != nil {
