@@ -8,7 +8,7 @@ import (
 	"github.com/crypto-smoke/meshtastic-go"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
-	"github.com/crypto-smoke/meshtastic-go/transport/serial"
+	"github.com/crypto-smoke/meshtastic-go/transport"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -387,7 +387,7 @@ func (r *Radio) dispatchMessageToFromRadio(msg *pb.FromRadio) error {
 	return nil
 }
 
-func (r *Radio) handleToRadioWantConfigID(conn *serial.StreamConn, req *pb.ToRadio_WantConfigId) error {
+func (r *Radio) handleToRadioWantConfigID(conn *transport.StreamConn, req *pb.ToRadio_WantConfigId) error {
 	// Send MyInfo
 	err := conn.Write(&pb.FromRadio{
 		PayloadVariant: &pb.FromRadio_MyInfo{
@@ -497,7 +497,7 @@ func (r *Radio) handleToRadioWantConfigID(conn *serial.StreamConn, req *pb.ToRad
 }
 
 func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) error {
-	streamConn := serial.NewRadioStreamConn(underlying)
+	streamConn := transport.NewRadioStreamConn(underlying)
 	defer func() {
 		if err := streamConn.Close(); err != nil {
 			r.logger.Error("failed to close streamConn", "err", err)

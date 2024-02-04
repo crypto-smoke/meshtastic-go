@@ -1,4 +1,4 @@
-package serial
+package transport
 
 import (
 	pb "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
