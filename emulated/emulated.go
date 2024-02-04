@@ -426,6 +426,115 @@ func (r *Radio) listenTCP(ctx context.Context) error {
 	}
 }
 
+func (r *Radio) handleToRadioWantConfigID(conn *serial.StreamConn, req *pb.ToRadio_WantConfigId) error {
+	// Send MyInfo
+	err := conn.Write(&pb.FromRadio{
+		PayloadVariant: &pb.FromRadio_MyInfo{
+			MyInfo: &pb.MyNodeInfo{
+				MyNodeNum:   r.cfg.NodeID.Uint32(),
+				RebootCount: 0,
+				// TODO: Track this as a const
+				MinAppVersion: 30200,
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("writing to streamConn: %w", err)
+	}
+
+	// Send Metadata
+	err = conn.Write(&pb.FromRadio{
+		PayloadVariant: &pb.FromRadio_Metadata{
+			Metadata: &pb.DeviceMetadata{
+				// TODO: Establish firmwareVersion/deviceStateVersion to fake here
+				FirmwareVersion:    "2.2.19-fake",
+				DeviceStateVersion: 22,
+				CanShutdown:        true,
+				HasWifi:            true,
+				HasBluetooth:       true,
+				// PositionFlags?
+				HwModel: pb.HardwareModel_PRIVATE_HW,
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("writing to streamConn: %w", err)
+	}
+
+	// Send all NodeDB entries - plus myself.
+	// TODO: Our own node info entry should be in the DB to avoid the special case here.
+	err = conn.Write(&pb.FromRadio{
+		PayloadVariant: &pb.FromRadio_NodeInfo{
+			NodeInfo: &pb.NodeInfo{
+				Num: r.cfg.NodeID.Uint32(),
+				User: &pb.User{
+					Id:        r.cfg.NodeID.String(),
+					LongName:  r.cfg.LongName,
+					ShortName: r.cfg.ShortName,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("writing to streamConn: %w", err)
+	}
+	for _, nodeInfo := range r.getNodeDB() {
+		err = conn.Write(&pb.FromRadio{
+			PayloadVariant: &pb.FromRadio_NodeInfo{
+				NodeInfo: nodeInfo,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("writing to streamConn: %w", err)
+		}
+	}
+
+	// TODO: Send all channels
+	err = conn.Write(&pb.FromRadio{
+		PayloadVariant: &pb.FromRadio_Channel{
+			Channel: &pb.Channel{
+				Index: 0,
+				Settings: &pb.ChannelSettings{
+					Psk: nil,
+				},
+				Role: pb.Channel_PRIMARY,
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("writing to streamConn: %w", err)
+	}
+
+	// Send Config: Device
+	err = conn.Write(&pb.FromRadio{
+		PayloadVariant: &pb.FromRadio_Config{
+			Config: &pb.Config{
+				PayloadVariant: &pb.Config_Device{
+					Device: &pb.Config_DeviceConfig{
+						SerialEnabled:         true,
+						NodeInfoBroadcastSecs: uint32(r.cfg.BroadcastNodeInfoInterval.Seconds()),
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("writing to streamConn: %w", err)
+	}
+
+	// Send ConfigComplete to indicate we're done
+	err = conn.Write(&pb.FromRadio{
+		PayloadVariant: &pb.FromRadio_ConfigCompleteId{
+			ConfigCompleteId: req.WantConfigId,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("writing to streamConn: %w", err)
+	}
+
+	return nil
+}
+
 func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) error {
 	streamConn := serial.NewRadioStreamConn(underlying)
 	defer func() {
@@ -451,109 +560,8 @@ func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) e
 			// the radio to close the connection. So we end the read loop here, and return to close the connection.
 			return nil
 		case *pb.ToRadio_WantConfigId:
-			// Send MyInfo
-			err := streamConn.Write(&pb.FromRadio{
-				PayloadVariant: &pb.FromRadio_MyInfo{
-					MyInfo: &pb.MyNodeInfo{
-						MyNodeNum:   r.cfg.NodeID.Uint32(),
-						RebootCount: 0,
-						// TODO: Track this as a const
-						MinAppVersion: 30200,
-					},
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("writing to streamConn: %w", err)
-			}
-
-			// Send Metadata
-			err = streamConn.Write(&pb.FromRadio{
-				PayloadVariant: &pb.FromRadio_Metadata{
-					Metadata: &pb.DeviceMetadata{
-						// TODO: Establish firmwareVersion/deviceStateVersion to fake here
-						FirmwareVersion:    "2.2.19-fake",
-						DeviceStateVersion: 22,
-						CanShutdown:        true,
-						HasWifi:            true,
-						HasBluetooth:       true,
-						// PositionFlags?
-						HwModel: pb.HardwareModel_PRIVATE_HW,
-					},
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("writing to streamConn: %w", err)
-			}
-
-			// Send all NodeDB entries - plus myself.
-			// TODO: Our own node info entry should be in the DB to avoid the special case here.
-			err = streamConn.Write(&pb.FromRadio{
-				PayloadVariant: &pb.FromRadio_NodeInfo{
-					NodeInfo: &pb.NodeInfo{
-						Num: r.cfg.NodeID.Uint32(),
-						User: &pb.User{
-							Id:        r.cfg.NodeID.String(),
-							LongName:  r.cfg.LongName,
-							ShortName: r.cfg.ShortName,
-						},
-					},
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("writing to streamConn: %w", err)
-			}
-			for _, nodeInfo := range r.getNodeDB() {
-				err = streamConn.Write(&pb.FromRadio{
-					PayloadVariant: &pb.FromRadio_NodeInfo{
-						NodeInfo: nodeInfo,
-					},
-				})
-				if err != nil {
-					return fmt.Errorf("writing to streamConn: %w", err)
-				}
-			}
-
-			// TODO: Send all channels
-			err = streamConn.Write(&pb.FromRadio{
-				PayloadVariant: &pb.FromRadio_Channel{
-					Channel: &pb.Channel{
-						Index: 0,
-						Settings: &pb.ChannelSettings{
-							Psk: nil,
-						},
-						Role: pb.Channel_PRIMARY,
-					},
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("writing to streamConn: %w", err)
-			}
-
-			// Send Config: Device
-			err = streamConn.Write(&pb.FromRadio{
-				PayloadVariant: &pb.FromRadio_Config{
-					Config: &pb.Config{
-						PayloadVariant: &pb.Config_Device{
-							Device: &pb.Config_DeviceConfig{
-								SerialEnabled:         true,
-								NodeInfoBroadcastSecs: uint32(r.cfg.BroadcastNodeInfoInterval.Seconds()),
-							},
-						},
-					},
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("writing to streamConn: %w", err)
-			}
-
-			// Send ConfigComplete to indicate we're done
-			err = streamConn.Write(&pb.FromRadio{
-				PayloadVariant: &pb.FromRadio_ConfigCompleteId{
-					ConfigCompleteId: msg.GetWantConfigId(),
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("writing to streamConn: %w", err)
+			if err := r.handleToRadioWantConfigID(streamConn, payload); err != nil {
+				return fmt.Errorf("handling WantConfigId: %w", err)
 			}
 		case *pb.ToRadio_Packet:
 			if decoded := payload.Packet.GetDecoded(); decoded != nil {
