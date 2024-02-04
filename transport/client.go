@@ -112,7 +112,7 @@ func (c *Client) Connect() error {
 				variant = msg.GetQueueStatus()
 			case *meshtastic.FromRadio_Rebooted:
 				// true if radio just rebooted
-				fmt.Print("rebooted", msg.GetRebooted())
+				c.log.Debug("rebooted", "rebooted", msg.GetRebooted())
 				continue
 			case *meshtastic.FromRadio_XmodemPacket:
 				variant = msg.GetXmodemPacket()
@@ -120,14 +120,14 @@ func (c *Client) Connect() error {
 			case *meshtastic.FromRadio_Packet:
 				variant = msg.GetPacket()
 			default:
-				log.Error("unhandled protobuf from radio")
+				c.log.Warn("unhandled protobuf from radio")
 			}
 			if !c.config.complete {
 				continue
 			}
 			err = c.handlers.HandleMessage(variant)
 			if err != nil {
-				log.Error("error handling message", "err", err)
+				c.log.Error("error handling message", "err", err)
 			}
 		}
 	}()

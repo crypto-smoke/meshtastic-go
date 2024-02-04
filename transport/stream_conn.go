@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,9 @@ type StreamConn struct {
 	conn io.ReadWriteCloser
 	// DebugWriter is an optional writer that is used when a non-protobuf message is sent over the connection.
 	DebugWriter io.Writer
+
+	readMu  sync.Mutex
+	writeMu sync.Mutex
 }
 
 // NewClientStreamConn creates a new StreamConn with the provided io.ReadWriteCloser.
@@ -64,7 +68,8 @@ func (c *StreamConn) Read(out proto.Message) error {
 // ReadBytes reads a byte message from the connection.
 // Prefer using Read if you have a protobuf message.
 func (c *StreamConn) ReadBytes() ([]byte, error) {
-	// TODO: Lock this function to prevent concurrent reads
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
 	buf := make([]byte, 4)
 	for {
 		// Read the first byte, looking for Start1.
@@ -152,8 +157,9 @@ func (c *StreamConn) WriteBytes(data []byte) error {
 	if len(data) > PacketMTU {
 		return fmt.Errorf("data length exceeds MTU: %d > %d", len(data), PacketMTU)
 	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 
-	// TODO: Lock this function to prevent concurrent writes
 	if err := writeStreamHeader(c.conn, uint16(len(data))); err != nil {
 		return fmt.Errorf("writing stream header: %w", err)
 	}
