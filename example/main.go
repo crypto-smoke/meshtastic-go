@@ -26,6 +26,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer func() {
+		if err := streamConn.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	client := transport.NewClient(streamConn, false)
 	client.Handle(new(pb.MeshPacket), func(msg proto.Message) {
