@@ -446,6 +446,10 @@ func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) e
 		}
 		r.logger.Info("received ToRadio from streamConn", "msg", msg)
 		switch payload := msg.PayloadVariant.(type) {
+		case *pb.ToRadio_Disconnect:
+			// The meshtastic python client sends a Disconnect command and with the TCP implementation, it expects
+			// the radio to close the connection. So we end the read loop here, and return to close the connection.
+			return nil
 		case *pb.ToRadio_WantConfigId:
 			// Send MyInfo
 			err := streamConn.Write(&pb.FromRadio{
