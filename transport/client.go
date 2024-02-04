@@ -99,24 +99,8 @@ func (c *Client) Connect() error {
 				c.config.modules = append(c.config.modules, cfg)
 				variant = cfg
 			case *meshtastic.FromRadio_ConfigCompleteId:
-				// done getting config info
-				//fmt.Println("config complete")
+				c.log.Info("config complete")
 				c.config.complete = true
-				/*
-					out, err := json.MarshalIndent(c.config, "", "  ")
-					if err != nil {
-						log.Error("failed marshalling", "err", err)
-						continue
-					}
-					fmt.Println(string(out))
-					out, err = json.MarshalIndent(c.config.config, "", "  ")
-					if err != nil {
-						log.Error("failed marshalling", "err", err)
-						continue
-					}
-					fmt.Println(string(out))
-
-				*/
 				continue
 				// below are packets not part of initial connection
 

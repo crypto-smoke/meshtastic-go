@@ -2,14 +2,19 @@ package main
 
 import (
 	pb "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
+	"context"
 	"github.com/charmbracelet/log"
 	"github.com/crypto-smoke/meshtastic-go/transport"
 	"github.com/crypto-smoke/meshtastic-go/transport/serial"
 	"google.golang.org/protobuf/proto"
-	"time"
+	"os"
+	"os/signal"
 )
 
 func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	log.SetLevel(log.DebugLevel)
 
 	ports := serial.GetPorts()
@@ -23,13 +28,14 @@ func main() {
 	}
 
 	client := transport.NewClient(streamConn, false)
-	client.Handle(new(pb.FromRadio), func(msg proto.Message) {
-		pkt := msg.(*pb.FromRadio)
+	client.Handle(new(pb.MeshPacket), func(msg proto.Message) {
+		pkt := msg.(*pb.MeshPacket)
 		log.Info("Received message from radio", "msg", pkt)
 	})
 	if client.Connect() != nil {
 		panic("Failed to connect to the radio")
 	}
 
-	time.Sleep(50 * time.Second)
+	log.Info("Waiting for interrupt signal")
+	<-ctx.Done()
 }
