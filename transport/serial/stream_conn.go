@@ -15,10 +15,13 @@ type StreamConn struct {
 	conn io.ReadWriteCloser
 }
 
+// NewStreamConn creates a new StreamConn with the provided io.ReadWriteCloser.
+// Once an io.ReadWriteCloser is provided, the StreamConn should be used read, write and close operations.
 func NewStreamConn(conn io.ReadWriteCloser) *StreamConn {
 	return &StreamConn{conn: conn}
 }
 
+// Close closes the connection.
 func (c *StreamConn) Close() (err error) {
 	return c.conn.Close()
 }
