@@ -53,6 +53,9 @@ type Config struct {
 	// PositionAltitude is the altitude of the position which will be regularly broadcasted.
 	// This is in meters above MSL.
 	PositionAltitude int32
+
+	// TCPListenAddr is the address the emulated radio will listen on for TCP connections and offer the Client API over.
+	TCPListenAddr string
 }
 
 func (c *Config) validate() error {
@@ -157,9 +160,11 @@ func (r *Radio) Run(ctx context.Context) error {
 			}
 		})
 	}
-	eg.Go(func() error {
-		return r.listenTCP(egCtx)
-	})
+	if r.cfg.TCPListenAddr != "" {
+		eg.Go(func() error {
+			return r.listenTCP(egCtx)
+		})
+	}
 
 	return eg.Wait()
 }
@@ -607,13 +612,12 @@ func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) e
 	return eg.Wait()
 }
 
-// TODO: Make listener configurable
 func (r *Radio) listenTCP(ctx context.Context) error {
-	l, err := net.Listen("tcp", "localhost:4403")
+	l, err := net.Listen("tcp", r.cfg.TCPListenAddr)
 	if err != nil {
 		return fmt.Errorf("listening: %w", err)
 	}
-	r.logger.Info("listening for tcp connections", "addr", "localhost:4403")
+	r.logger.Info("listening for tcp connections", "addr", r.cfg.TCPListenAddr)
 
 	for {
 		c, err := l.Accept()
@@ -623,7 +627,7 @@ func (r *Radio) listenTCP(ctx context.Context) error {
 		}
 		go func() {
 			if err := r.handleConn(ctx, c); err != nil {
-				r.logger.Error("failed to handle connection", "err", err)
+				r.logger.Error("failed to handle TCP connection", "err", err)
 			}
 		}()
 	}
@@ -634,7 +638,7 @@ func (r *Radio) Conn(ctx context.Context) net.Conn {
 	clientConn, radioConn := net.Pipe()
 	go func() {
 		if err := r.handleConn(ctx, radioConn); err != nil {
-			r.logger.Error("failed to handle connection", "err", err)
+			r.logger.Error("failed to handle in-memory connection", "err", err)
 		}
 	}()
 	return clientConn

@@ -43,6 +43,8 @@ func main() {
 		PositionLatitudeI:  515014760,
 		PositionLongitudeI: -1406340,
 		PositionAltitude:   2,
+
+		TCPListenAddr: "127.0.0.1:4403",
 	})
 	if err != nil {
 		panic(err)
