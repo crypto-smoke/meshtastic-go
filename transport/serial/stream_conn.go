@@ -18,7 +18,7 @@ const (
 	// Start2 is a magic byte used in the meshtastic stream protocol.
 	// It is sent after Start1 to indicate the start of a new message.
 	Start2 = 0xc3
-	// PacketMTU is the maximum transmission unit for a meshtastic packet.
+	// PacketMTU is the maximum size of the protobuf message which can be sent within the header.
 	PacketMTU = 512
 )
 
@@ -61,7 +61,7 @@ func (c *StreamConn) Read(out proto.Message) error {
 	return proto.Unmarshal(data, out)
 }
 
-// ReadBytes reads a byte slice from the connection.
+// ReadBytes reads a byte message from the connection.
 // Prefer using Read if you have a protobuf message.
 func (c *StreamConn) ReadBytes() ([]byte, error) {
 	// TODO: Lock this function to prevent concurrent reads
