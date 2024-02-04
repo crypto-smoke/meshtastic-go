@@ -9,7 +9,7 @@ import (
 	"github.com/crypto-smoke/meshtastic-go/emulated"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
-	"github.com/crypto-smoke/meshtastic-go/transport/serial"
+	"github.com/crypto-smoke/meshtastic-go/transport"
 	"golang.org/x/sync/errgroup"
 	"time"
 )
@@ -57,7 +57,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		conn, err := serial.NewClientStreamConn(r.Conn(egCtx))
+		conn, err := transport.NewClientStreamConn(r.Conn(egCtx))
 		if err != nil {
 			return fmt.Errorf("creating connection: %w", err)
 		}

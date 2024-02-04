@@ -13,6 +13,7 @@ type HandlerFunc func(message proto.Message)
 type Client struct {
 	sc       *StreamConn
 	handlers *HandlerRegistry
+	log      *log.Logger
 
 	config struct {
 		complete bool
@@ -28,22 +29,27 @@ type Client struct {
 
 func NewClient(sc *StreamConn, errorOnNoHandler bool) *Client {
 	return &Client{
+		log:      log.WithPrefix("client"),
 		sc:       sc,
 		handlers: NewHandlerRegistry(errorOnNoHandler),
 	}
 }
 
 // You have to send this first to get the radio into protobuf mode and have it accept and send packets via serial
-func (c *Client) sendGetConfig() {
+func (c *Client) sendGetConfig() error {
 	r := rand.Uint32()
 	c.config.configID = r
-	//log.Info("want config id", r)
 	msg := &meshtastic.ToRadio{
 		PayloadVariant: &meshtastic.ToRadio_WantConfigId{
 			WantConfigId: r,
 		},
 	}
-	c.sc.Write(msg)
+	c.log.Debug("sending want config", "id", r)
+	if err := c.sc.Write(msg); err != nil {
+		return fmt.Errorf("writing want config command: %w", err)
+	}
+	c.log.Debug("sent want config")
+	return nil
 }
 
 func (c *Client) Handle(kind proto.Message, handler MessageHandler) {
@@ -55,15 +61,18 @@ func (c *Client) SendToRadio(msg *meshtastic.ToRadio) error {
 }
 
 func (c *Client) Connect() error {
-	c.sendGetConfig()
+	if err := c.sendGetConfig(); err != nil {
+		return fmt.Errorf("requesting config: %w", err)
+	}
 	go func() {
 		for {
 			msg := &meshtastic.FromRadio{}
 			err := c.sc.Read(msg)
 			if err != nil {
-				log.Error("error reading from radio", "err", err)
+				c.log.Error("error reading from radio", "err", err)
 				continue
 			}
+			c.log.Debug("received message from radio", "msg", msg)
 			var variant proto.Message
 			switch msg.GetPayloadVariant().(type) {
 			// These pbufs all get sent upon initial connection to the node
