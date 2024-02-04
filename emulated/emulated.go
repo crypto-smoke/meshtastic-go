@@ -8,8 +8,11 @@ import (
 	"github.com/crypto-smoke/meshtastic-go"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
+	"github.com/crypto-smoke/meshtastic-go/transport/serial"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
+	"io"
+	"net"
 	"sync"
 	"time"
 )
@@ -109,7 +112,7 @@ func (r *Radio) Run(ctx context.Context) error {
 	// Subscribe to all configured channels
 	for _, ch := range r.cfg.Channels.Settings {
 		r.logger.Debug("subscribing to mqtt for channel", "channel", ch.Name)
-		r.mqtt.Handle(ch.Name, r.handleMQTTMessage)
+		// r.mqtt.Handle(ch.Name, r.handleMQTTMessage)
 	}
 
 	// TODO: Rethink concurrency. Do we want a goroutine servicing ToRadio and one servicing FromRadio?
@@ -149,6 +152,9 @@ func (r *Radio) Run(ctx context.Context) error {
 			}
 		})
 	}
+	eg.Go(func() error {
+		return r.listenTCP(egCtx)
+	})
 
 	return eg.Wait()
 }
@@ -386,4 +392,47 @@ func (r *Radio) ToRadio(ctx context.Context, msg *pb.ToRadio) error {
 		r.logger.Debug("unknown payload variant", "payload", payload)
 	}
 	return fmt.Errorf("not implemented")
+}
+
+// TODO: Make listener configurable
+func (r *Radio) listenTCP(ctx context.Context) error {
+	l, err := net.Listen("tcp", "localhost:4403")
+	if err != nil {
+		return fmt.Errorf("listening: %w", err)
+	}
+
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			r.logger.Error("failed to accept connection", "err", err)
+			continue
+		}
+		go func() {
+			if err := r.handleConn(ctx, c); err != nil {
+				r.logger.Error("failed to handle connection", "err", err)
+			}
+		}()
+	}
+}
+
+func (r *Radio) handleConn(ctx context.Context, underlying io.ReadWriteCloser) error {
+	streamConn := serial.NewRadioStreamConn(underlying)
+	defer func() {
+		if err := streamConn.Close(); err != nil {
+			r.logger.Error("failed to close streamConn", "err", err)
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+		msg := &pb.ToRadio{}
+		if err := streamConn.Read(msg); err != nil {
+			return fmt.Errorf("reading from streamConn: %w", err)
+		}
+		r.logger.Info("received ToRadio", "msg", msg)
+	}
 }
