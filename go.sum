@@ -1,5 +1,5 @@
-buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240117225219-a9940c43223e.1 h1:6Y6LLHjUJsLAS01ZOZ/imBOXIek4ebWhZwadIx6el5I=
-buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240117225219-a9940c43223e.1/go.mod h1:6znL4Am/mtSqEWteEmKgLpgDI0t/Wx80bzMsTKlu2oA=
+buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240131194456-1cf305ba59b8.1 h1:2kUt4QB0+OtdaJLw/n/Y9rkBE01FwtyxGyF1ontBf5Q=
+buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240131194456-1cf305ba59b8.1/go.mod h1:6znL4Am/mtSqEWteEmKgLpgDI0t/Wx80bzMsTKlu2oA=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/charmbracelet/lipgloss v0.9.1 h1:PNyd3jvaJbg4jRHKWXnCj1akQm4rh8dbEzN1p/u1KWg=
@@ -20,8 +20,6 @@ github.com/google/go-cmp v0.5.8 h1:e6P7q2lk1O+qJJb4BtCQXlK8vWEO8V1ZeuEdJNOqZyg=
 github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
-github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-isatty v0.0.18 h1:DOKFKCQ7FNG2L1rbrmstDN4QVRdS89Nkh85u68Uwp98=

@@ -3,11 +3,11 @@ module github.com/crypto-smoke/meshtastic-go
 go 1.21
 
 require (
-	buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240117225219-a9940c43223e.1
+	buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240131194456-1cf305ba59b8.1
 	github.com/charmbracelet/log v0.3.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
-	github.com/kylelemons/godebug v1.1.0
 	go.bug.st/serial v1.6.1
+	golang.org/x/sync v0.1.0
 	google.golang.org/protobuf v1.32.0
 )
 
@@ -25,6 +25,5 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 )
