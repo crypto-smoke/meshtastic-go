@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"os"
 	"os/signal"
+	"time"
 )
 
 func main() {
@@ -37,7 +38,9 @@ func main() {
 		pkt := msg.(*pb.MeshPacket)
 		log.Info("Received message from radio", "msg", pkt)
 	})
-	if client.Connect() != nil {
+	ctxTimeout, cancelTimeout := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelTimeout()
+	if client.Connect(ctxTimeout) != nil {
 		panic("Failed to connect to the radio")
 	}
 
