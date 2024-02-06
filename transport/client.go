@@ -128,7 +128,7 @@ func (s *State) AddConfig(config *meshtastic.Config) {
 	s.configs = append(s.configs, config)
 }
 
-func (s *State) AddModules(module *meshtastic.ModuleConfig) {
+func (s *State) AddModule(module *meshtastic.ModuleConfig) {
 	s.Lock()
 	defer s.Unlock()
 	s.modules = append(s.modules, module)
@@ -203,7 +203,7 @@ func (c *Client) Connect(ctx context.Context) error {
 				variant = cfg
 			case *meshtastic.FromRadio_ModuleConfig:
 				cfg := msg.GetModuleConfig()
-				c.State.AddModules(cfg)
+				c.State.AddModule(cfg)
 				variant = cfg
 			case *meshtastic.FromRadio_ConfigCompleteId:
 				// logged here because it's not an actual proto.Message that we can call handlers on
