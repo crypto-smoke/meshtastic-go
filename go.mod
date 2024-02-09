@@ -3,7 +3,7 @@ module github.com/crypto-smoke/meshtastic-go
 go 1.21
 
 require (
-	buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240205150612-5f5829b3d783.1
+	buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240209005611-dcefa00e491b.1
 	github.com/charmbracelet/log v0.3.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/stretchr/testify v1.8.4
