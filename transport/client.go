@@ -171,6 +171,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	if err := c.sendGetConfig(); err != nil {
 		return fmt.Errorf("requesting config: %w", err)
 	}
+	cfgComplete := make(chan struct{})
 	go func() {
 		for {
 			msg := &meshtastic.FromRadio{}
@@ -208,6 +209,9 @@ func (c *Client) Connect(ctx context.Context) error {
 			case *meshtastic.FromRadio_ConfigCompleteId:
 				// logged here because it's not an actual proto.Message that we can call handlers on
 				c.log.Debug("config complete")
+				if !c.State.Complete() {
+					close(cfgComplete)
+				}
 				c.State.SetComplete(true)
 				continue
 				// below are packets not part of initial connection
@@ -248,11 +252,8 @@ func (c *Client) Connect(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ErrTimeout
-		case <-ticker.C:
-			done := c.State.Complete()
-			if done {
-				return nil
-			}
+		case <-cfgComplete:
+			return nil
 		}
 	}
 }
