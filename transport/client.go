@@ -176,6 +176,7 @@ func (c *Client) Connect(ctx context.Context) error {
 			msg := &meshtastic.FromRadio{}
 			err := c.sc.Read(msg)
 			if err != nil {
+				// TODO: close the connection so the consumer can reconnect
 				c.log.Error("error reading from radio", "err", err)
 				continue
 			}

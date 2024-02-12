@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+const wildcardHandler = "__WILDCARD_HANDLER__"
+
 // MessageHandler defines the function signature for a handler that processes a protobuf message.
 type MessageHandler func(msg proto.Message)
 
@@ -25,11 +27,15 @@ func NewHandlerRegistry(errorOnNoHandler bool) *HandlerRegistry {
 	}
 }
 
-// RegisterHandler registers a handler for a specific protobuf message type.
+// RegisterHandler registers a handler for a specific protobuf message type. If a nil msg is passed, then handler will
+// be called for all received messages.
 func (r *HandlerRegistry) RegisterHandler(msg proto.Message, handler MessageHandler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
+	if msg == nil {
+		r.handlers[wildcardHandler] = append(r.handlers[wildcardHandler], handler)
+		return
+	}
 	msgName := proto.MessageName(msg)
 	if msgName == "" {
 		return // Could not get message name; consider logging or handling the error
@@ -48,13 +54,22 @@ func (r *HandlerRegistry) HandleMessage(msg proto.Message) error {
 		return fmt.Errorf("failed to get message name for type: %T", msg) // Could not get message name; consider logging or handling the error
 	}
 	name := string(msgName)
+	//fmt.Println(name)
+	var hasHandler bool
 
-	if handlers, exists := r.handlers[name]; exists {
-		for _, handler := range handlers {
-			go handler(msg)
-		}
+	// call specific handlers
+	for _, handler := range r.handlers[name] {
+		go handler(msg)
+		hasHandler = true
+	}
 
-	} else if r.errorOnNoHandlers {
+	// call wildcard handlers
+	for _, handler := range r.handlers[wildcardHandler] {
+		go handler(msg)
+		hasHandler = true
+	}
+
+	if !hasHandler && r.errorOnNoHandlers {
 		return fmt.Errorf("no handlers registered for message: %s", msgName)
 	}
 
