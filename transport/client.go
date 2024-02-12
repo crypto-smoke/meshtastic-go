@@ -249,7 +249,7 @@ func (c *Client) Connect(ctx context.Context) error {
 		case <-ctx.Done():
 			return ErrTimeout
 		case <-ticker.C:
-			done := c.State.complete
+			done := c.State.Complete()
 			if done {
 				return nil
 			}
