@@ -59,31 +59,47 @@ func (s *State) NodeInfo() *meshtastic.MyNodeInfo {
 func (s *State) DeviceMetadata() *meshtastic.DeviceMetadata {
 	s.RLock()
 	defer s.RUnlock()
-	return s.deviceMetadata
+	return proto.Clone(s.deviceMetadata).(*meshtastic.DeviceMetadata)
 }
 
 func (s *State) Nodes() []*meshtastic.NodeInfo {
 	s.RLock()
 	defer s.RUnlock()
-	return s.nodes
+	var nodeInfos []*meshtastic.NodeInfo
+	for _, n := range s.nodes {
+		nodeInfos = append(nodeInfos, proto.Clone(n).(*meshtastic.NodeInfo))
+	}
+	return nodeInfos
 }
 
 func (s *State) Channels() []*meshtastic.Channel {
 	s.RLock()
 	defer s.RUnlock()
-	return s.channels
+	var channels []*meshtastic.Channel
+	for _, n := range s.channels {
+		channels = append(channels, proto.Clone(n).(*meshtastic.Channel))
+	}
+	return channels
 }
 
 func (s *State) Configs() []*meshtastic.Config {
 	s.RLock()
 	defer s.RUnlock()
-	return s.configs
+	var configs []*meshtastic.Config
+	for _, n := range s.configs {
+		configs = append(configs, proto.Clone(n).(*meshtastic.Config))
+	}
+	return configs
 }
 
 func (s *State) Modules() []*meshtastic.ModuleConfig {
 	s.RLock()
 	defer s.RUnlock()
-	return s.modules
+	var configs []*meshtastic.ModuleConfig
+	for _, n := range s.modules {
+		configs = append(configs, proto.Clone(n).(*meshtastic.ModuleConfig))
+	}
+	return configs
 }
 
 func (s *State) SetComplete(complete bool) {
