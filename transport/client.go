@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"math/rand"
 	"sync"
-	"time"
 )
 
 var (
@@ -262,8 +261,6 @@ func (c *Client) Connect(ctx context.Context) error {
 			}
 		}
 	}()
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
 
 	for {
 		select {
