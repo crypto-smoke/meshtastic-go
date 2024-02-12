@@ -136,6 +136,7 @@ func (s *State) AddModule(module *meshtastic.ModuleConfig) {
 
 func NewClient(sc *StreamConn, errorOnNoHandler bool) *Client {
 	return &Client{
+		// TODO: allow consumer to specify logger
 		log:      slog.Default().WithGroup("client"),
 		sc:       sc,
 		handlers: NewHandlerRegistry(errorOnNoHandler),
