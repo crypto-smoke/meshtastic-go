@@ -1,5 +1,5 @@
-buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240205150612-5f5829b3d783.1 h1:jZ9fyhBuijpcfehFBqm3xNbEPr4B8cdBHuHash1Vg/A=
-buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240205150612-5f5829b3d783.1/go.mod h1:6znL4Am/mtSqEWteEmKgLpgDI0t/Wx80bzMsTKlu2oA=
+buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240211215705-89f15a9842b0.1 h1:XYsqzpo0wQYlLzZDsT5cdnrNrfBY0mgJd6bvfiixX9E=
+buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.32.0-20240211215705-89f15a9842b0.1/go.mod h1:6znL4Am/mtSqEWteEmKgLpgDI0t/Wx80bzMsTKlu2oA=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/charmbracelet/lipgloss v0.9.1 h1:PNyd3jvaJbg4jRHKWXnCj1akQm4rh8dbEzN1p/u1KWg=
