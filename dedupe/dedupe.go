@@ -1,4 +1,4 @@
-package meshtastic
+package dedupe
 
 import (
 	"encoding/hex"

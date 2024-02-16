@@ -1,8 +1,8 @@
-package meshtastic_test
+package dedupe_test
 
 import (
 	"crypto/md5"
-	"github.com/crypto-smoke/meshtastic-go"
+	"github.com/crypto-smoke/meshtastic-go/dedupe"
 	"testing"
 	"time"
 )
@@ -10,7 +10,7 @@ import (
 func TestPacketDeduplicatorSeen(t *testing.T) {
 	hasher := md5.New()
 	expiresAfter := 100 * time.Millisecond
-	dedup := meshtastic.NewDeduplicator(hasher, expiresAfter)
+	dedup := dedupe.NewDeduplicator(hasher, expiresAfter)
 
 	sender := uint32(1)
 	packetID := uint32(1)
@@ -37,7 +37,7 @@ func TestPacketDeduplicatorSeen(t *testing.T) {
 func TestPacketDeduplicatorSeenData(t *testing.T) {
 	hasher := md5.New()
 	expiresAfter := 100 * time.Millisecond
-	dedup := meshtastic.NewDeduplicator(hasher, expiresAfter)
+	dedup := dedupe.NewDeduplicator(hasher, expiresAfter)
 
 	data := []byte("test data")
 
