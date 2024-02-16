@@ -1,9 +1,9 @@
 package main
 
 import (
-	pb "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"context"
 	"github.com/charmbracelet/log"
+	pb "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"github.com/crypto-smoke/meshtastic-go/transport"
 	"github.com/crypto-smoke/meshtastic-go/transport/serial"
 	"google.golang.org/protobuf/proto"

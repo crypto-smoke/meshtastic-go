@@ -1,10 +1,10 @@
 package transport
 
 import (
-	"buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"context"
 	"errors"
 	"fmt"
+	meshtastic "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"math/rand"

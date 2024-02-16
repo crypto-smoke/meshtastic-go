@@ -1,8 +1,8 @@
 package transport
 
 import (
-	pb "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"bytes"
+	pb "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"

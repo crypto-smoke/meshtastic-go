@@ -1,10 +1,10 @@
 package radio
 
 import (
-	generated "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	generated "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"google.golang.org/protobuf/proto"
 )
 

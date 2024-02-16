@@ -1,7 +1,7 @@
 package meshtastic
 
 import (
-	pbuf "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
+	pbuf "github.com/crypto-smoke/meshtastic-go/meshtastic"
 )
 
 type Node struct {
