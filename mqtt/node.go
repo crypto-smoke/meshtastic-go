@@ -1,6 +1,6 @@
 package mqtt
 
-import "github.com/meshnet-gophers/protobufs/meshtastic"
+import meshtastic "github.com/crypto-smoke/meshtastic-go/meshtastic"
 
 // Node implements a meshtastic node that connects only via MQTT
 type Node struct {

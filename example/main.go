@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"github.com/charmbracelet/log"
+	pb "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"github.com/crypto-smoke/meshtastic-go/transport"
 	"github.com/crypto-smoke/meshtastic-go/transport/serial"
-	pb "github.com/meshnet-gophers/protobufs/meshtastic"
 	"google.golang.org/protobuf/proto"
 	"os"
 	"os/signal"

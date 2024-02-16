@@ -6,10 +6,10 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/crypto-smoke/meshtastic-go"
 	"github.com/crypto-smoke/meshtastic-go/emulated"
+	pb "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
 	"github.com/crypto-smoke/meshtastic-go/transport"
-	pb "github.com/meshnet-gophers/protobufs/meshtastic"
 	"golang.org/x/sync/errgroup"
 	"time"
 )

@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/charmbracelet/log v0.3.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
-	github.com/meshnet-gophers/protobufs v0.0.0-20240216150730-37862814df79
+	github.com/meshnet-gophers/protobufs v2.2.22+incompatible
 	github.com/stretchr/testify v1.8.4
 	go.bug.st/serial v1.6.1
 	golang.org/x/sync v0.6.0

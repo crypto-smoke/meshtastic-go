@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/meshnet-gophers/protobufs/meshtastic"
+	meshtastic "github.com/crypto-smoke/meshtastic-go/meshtastic"
 	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"math/rand"
