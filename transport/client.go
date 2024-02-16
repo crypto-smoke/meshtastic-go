@@ -1,10 +1,10 @@
 package transport
 
 import (
-	"buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/meshnet-gophers/protobufs/meshtastic"
 	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"math/rand"

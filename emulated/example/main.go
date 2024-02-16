@@ -1,7 +1,6 @@
 package main
 
 import (
-	pb "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 	"context"
 	"fmt"
 	"github.com/charmbracelet/log"
@@ -10,6 +9,7 @@ import (
 	"github.com/crypto-smoke/meshtastic-go/mqtt"
 	"github.com/crypto-smoke/meshtastic-go/radio"
 	"github.com/crypto-smoke/meshtastic-go/transport"
+	pb "github.com/meshnet-gophers/protobufs/meshtastic"
 	"golang.org/x/sync/errgroup"
 	"time"
 )
