@@ -5,7 +5,7 @@ env:
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 14 * * 1" # 2pm cest, weekly on Monday
+#    - cron: "0 14 * * 1" # 2pm cest, weekly on Monday
 
 jobs:
   dep_update:
